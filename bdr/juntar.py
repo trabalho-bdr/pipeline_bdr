@@ -62,6 +62,7 @@ def juntar(pacotes, banco_saida, pasta_tmp):
             manifestos.append(dados)
             print(f"   {dados.get('rotulo', pasta.name)}: UFs {', '.join(dados.get('ufs', []))}")
 
+    Path(banco_saida).parent.mkdir(parents=True, exist_ok=True)
     Path(banco_saida).unlink(missing_ok=True)
     con = duckdb.connect(str(banco_saida))
     for tabela, colunas in TABELAS.items():

@@ -183,7 +183,28 @@ uv run python juntar.py \
 
 ---
 
-## 8. Formato Esperado para o IDHM Local
+## 8. Enviar o banco local ao MotherDuck
+
+Depois de executar a etapa `carregar`, cada membro define seu token MotherDuck na sessão do PowerShell. Todos precisam ter permissão de escrita no mesmo espaço MotherDuck e usar **o mesmo nome de banco**, `pipeline_bdr_completo`:
+
+```powershell
+$env:MOTHERDUCK_TOKEN = "seu-token"
+uv run python executar.py --membro 3 --etapas motherduck --motherduck-db pipeline_bdr_completo
+```
+
+Cada membro troca `3` por seu número e executa só o próprio comando. A primeira execução cria o banco; as demais acrescentam os municípios e dados das outras UFs às mesmas seis tabelas. Se uma UF já estiver no banco, o comando interrompe o envio para evitar repetição. O campo `uf` está na tabela `municipio`; consulte os votos por UF com `SELECT m.uf, v.* FROM pipeline_bdr_completo.main.votos_partido_municipio v JOIN pipeline_bdr_completo.main.municipio m ON m.cod_tse = v.cod_tse_municipio`. Não coloque o token no código ou no repositório.
+
+Se preferir juntar os quatro ZIPs em um computador antes do envio, coloque-os em `dados_bdr/saida/` e execute:
+
+```powershell
+uv run python juntar.py dados_bdr/saida/membro1_para_drive.zip dados_bdr/saida/membro2_para_drive.zip dados_bdr/saida/membro3_para_drive.zip dados_bdr/saida/membro4_para_drive.zip --motherduck-db pipeline_bdr_completo
+```
+
+Isso cria `dados_bdr/bdr_consolidado.duckdb` e envia o banco ao MotherDuck. Use um nome remoto novo nesse modo de consolidação.
+
+---
+
+## 9. Formato Esperado para o IDHM Local
 
 Caso o grupo deseje incluir ou atualizar dados municipais de IDHM, utilize o arquivo `dados_bdr/fontes/idhm.csv`:
 
@@ -199,7 +220,7 @@ id_municipio;ano_referencia;idhm
 
 ---
 
-## 9. Limitações Metodológicas
+## 10. Limitações Metodológicas
 
 - **Referência histórica do IDHM:** O último IDHM municipal oficial no Brasil refere-se ao Censo 2010. Não se deve criar valores artificiais para 2022 ou 2024. O IDHM deve ser interpretado como indicador estrutural histórico de longo prazo ao compará-lo com as eleições de 2022/2024.
 - **Diferenças entre as eleições de 2022 e 2024:** A eleição de 2022 é geral (Presidente, Governador, Senador, Deputados Federais e Estaduais) e a de 2024 é municipal (Prefeito e Vereador). O eleitorado municipal e o comportamento eleitoral refletem naturezas e dinâmicas políticas distintas.
