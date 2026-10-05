@@ -114,10 +114,18 @@ def gerar_manifesto(con, escopo, arquivos, avisos):
     """)
 
     participacao_resumo = _linhas(con, """
+        WITH municipio_turno AS (
+            SELECT ano, turno, cod_tse_municipio,
+                   max(eleitorado_apto) AS eleitorado_apto,
+                   max(comparecimento) AS comparecimento,
+                   max(abstencoes) AS abstencoes
+            FROM participacao_eleitoral
+            GROUP BY ano, turno, cod_tse_municipio
+        )
         SELECT ano, turno,
                sum(eleitorado_apto), sum(comparecimento), sum(abstencoes),
                round(100.0 * sum(abstencoes) / nullif(sum(eleitorado_apto), 0), 2) AS taxa_pct
-        FROM participacao_eleitoral
+        FROM municipio_turno
         GROUP BY ano, turno ORDER BY ano, turno
     """)
 

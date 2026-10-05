@@ -106,9 +106,17 @@ def _relatorio(con, manifestos):
         print(f"   {ano}: {nom:,} nominais | {leg:,} legenda")
 
     partic = con.execute("""
+        WITH municipio_turno AS (
+            SELECT ano, turno, cod_tse_municipio,
+                   max(eleitorado_apto) AS eleitorado_apto,
+                   max(comparecimento) AS comparecimento,
+                   max(abstencoes) AS abstencoes
+            FROM participacao_eleitoral
+            GROUP BY ano, turno, cod_tse_municipio
+        )
         SELECT ano, turno, sum(eleitorado_apto), sum(comparecimento), sum(abstencoes),
                round(100.0 * sum(abstencoes) / nullif(sum(eleitorado_apto), 0), 2)
-        FROM participacao_eleitoral
+        FROM municipio_turno
         GROUP BY ano, turno ORDER BY ano, turno
     """).fetchall()
     print("\nParticipação Eleitoral Consolidada:")

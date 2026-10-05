@@ -185,6 +185,17 @@ uv run python juntar.py \
 
 ## 8. Enviar o banco local ao MotherDuck
 
+Para processar as seis UFs e, ao final, enviar todas as tabelas ao MotherDuck:
+
+```bash
+uv run python executar.py --ufs CE MA MS RJ RN RS --anos 2022 2024 \
+  --etapas baixar carregar exportar motherduck \
+  --motherduck-db pipeline_bdr_completo
+```
+
+Se o token não estiver definido no ambiente, o programa irá solicitá-lo de forma
+oculta no terminal. O token não é salvo no código nem no banco local.
+
 Depois de executar a etapa `carregar`, cada membro pode entregar seu ZIP à pessoa responsável pelo banco MotherDuck. Essa pessoa define seu token na sessão do PowerShell e usa **o mesmo nome de banco**, `pipeline_bdr_completo`, ao importar cada banco local:
 
 ```powershell

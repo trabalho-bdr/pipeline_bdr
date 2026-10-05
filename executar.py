@@ -39,6 +39,10 @@ def main():
                    default=["baixar", "carregar", "exportar"],
                    help="etapas a executar (padrão: baixar carregar exportar)")
     p.add_argument("--motherduck-db", help="nome do banco compartilhado no MotherDuck (usado com --etapas motherduck)")
+    p.add_argument("--substituir-ufs", action="store_true",
+                   help="substitui no MotherDuck as UFs já existentes pela versão local")
+    p.add_argument("--remover-ufs-motherduck", nargs="+", metavar="UF",
+                   help="remove estas UFs do MotherDuck durante a atualização")
     p.add_argument("--dir", default="dados_bdr", help="pasta base de dados (padrão: dados_bdr)")
     p.add_argument("--de-para", default="dados_bdr/fontes/municipio_tse_ibge.csv",
                    help="CSV de correspondência município TSE <-> IBGE (opcional)")
@@ -70,7 +74,10 @@ def main():
             zip_final = etapa_exportar(pastas)
             print(f"\nPacote exportado para o Drive: {zip_final}")
         if "motherduck" in a.etapas:
-            nome = enviar_membro(pastas.banco, a.motherduck_db)
+            nome = enviar_membro(
+                pastas.banco, a.motherduck_db, a.substituir_ufs,
+                a.remover_ufs_motherduck,
+            )
             print(f"\nDados do membro adicionados ao banco MotherDuck: {nome}")
     except ValueError as e:
         sys.exit(f"\nERRO: {e}")
