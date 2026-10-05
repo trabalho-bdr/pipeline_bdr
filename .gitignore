@@ -1,0 +1,29 @@
+# Ambientes virtuais e pacotes
+.venv/
+env/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Diretório de dados brutos e saídas (evita arquivos de vários GBs no Git)
+dados_bdr/
+*.duckdb
+*.duckdb.wal
+*.zip
+*.parquet
+*.csv
+
+# Editores e SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Variáveis locais e testes
+.env
+.env.*
+.pytest_cache/
+scratch*

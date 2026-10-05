@@ -1,0 +1,13 @@
+[project]
+name = "load-bdr"
+version = "0.1.0"
+description = "Pipeline de dados eleitorais e socioeconômicos do TSE e IBGE para a Questão 3 do BDR"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "duckdb>=1.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
