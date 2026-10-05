@@ -185,14 +185,14 @@ uv run python juntar.py \
 
 ## 8. Enviar o banco local ao MotherDuck
 
-Depois de executar a etapa `carregar`, cada membro define seu token MotherDuck na sessão do PowerShell. Todos precisam ter permissão de escrita no mesmo espaço MotherDuck e usar **o mesmo nome de banco**, `pipeline_bdr_completo`:
+Depois de executar a etapa `carregar`, cada membro pode entregar seu ZIP à pessoa responsável pelo banco MotherDuck. Essa pessoa define seu token na sessão do PowerShell e usa **o mesmo nome de banco**, `pipeline_bdr_completo`, ao importar cada banco local:
 
 ```powershell
 $env:MOTHERDUCK_TOKEN = "seu-token"
 uv run python executar.py --membro 3 --etapas motherduck --motherduck-db pipeline_bdr_completo
 ```
 
-Cada membro troca `3` por seu número e executa só o próprio comando. A primeira execução cria o banco; as demais acrescentam os municípios e dados das outras UFs às mesmas seis tabelas. Se uma UF já estiver no banco, o comando interrompe o envio para evitar repetição. O campo `uf` está na tabela `municipio`; consulte os votos por UF com `SELECT m.uf, v.* FROM pipeline_bdr_completo.main.votos_partido_municipio v JOIN pipeline_bdr_completo.main.municipio m ON m.cod_tse = v.cod_tse_municipio`. Não coloque o token no código ou no repositório.
+O primeiro envio cria o banco; os seguintes acrescentam os municípios e dados das outras UFs às mesmas seis tabelas. Para importar membros de computadores diferentes, reúna os ZIPs e use o comando de consolidação abaixo. Se uma UF já estiver no banco, o envio individual interrompe para evitar repetição. O campo `uf` está na tabela `municipio`; consulte os votos por UF com `SELECT m.uf, v.* FROM pipeline_bdr_completo.main.votos_partido_municipio v JOIN pipeline_bdr_completo.main.municipio m ON m.cod_tse = v.cod_tse_municipio`. Não coloque o token no código ou no repositório.
 
 Se preferir juntar os quatro ZIPs em um computador antes do envio, coloque-os em `dados_bdr/saida/` e execute:
 
