@@ -238,3 +238,33 @@ id_municipio;ano_referencia;idhm
 - **Não agregação cega de cargos:** A tabela `votos_partido_municipio` mantém a chave `cd_cargo`, impedindo a soma indevida de votos majoritários e proporcionais ou de cargos distintos.
 - **Granularidade do Boletim de Urna:** Como cada linha do BU representa uma opção de voto, campos como `QT_APTOS`, `QT_COMPARECIMENTO` e `QT_ABSTENCOES` se repetem para cada cargo e candidato na urna. A pipeline realiza a deduplicação obrigatória no nível de seção/urna antes de somar para o município.
 - **Descompasso temporal entre fontes:** Indicadores socioeconômicos (PIB 2022, População Censo 2022, IDHM 2010) e resultados eleitorais (2022 e 2024) possuem referências temporais próprias, preservadas explicitamente na coluna `ano_referencia`.
+
+---
+
+## 11. Trajetória eleitoral dos candidatos (Questão 10)
+
+A pipeline histórica é independente da Questão 3 e usa `consulta_cand` e
+`votacao_candidato_munzona` do TSE entre 2002 e 2024:
+
+```bash
+uv run python executar_trajetoria.py \
+  --ufs CE MA MS RJ RN RS \
+  --anos 2002 2004 2006 2008 2010 2012 2014 2016 2018 2020 2022 2024
+```
+
+Os dados temporários ficam em `dados_bdr/q10/`. O banco, o manifesto de validação
+e o backup Parquet ficam em `dados_bdr/q10/saida/trajetoria_CE-MA-MS-RJ-RN-RS/`.
+Nenhum dado é enviado ao MotherDuck por padrão.
+
+Depois que todas as validações passarem:
+
+```bash
+uv run python executar_trajetoria.py \
+  --ufs CE MA MS RJ RN RS \
+  --anos 2002 2004 2006 2008 2010 2012 2014 2016 2018 2020 2022 2024 \
+  --etapas motherduck \
+  --motherduck-db pipeline_bdr_completo
+```
+
+Se as tabelas históricas já existirem, a substituição exige a opção explícita
+`--substituir`. O token é solicitado de forma oculta e nunca é salvo no projeto.
