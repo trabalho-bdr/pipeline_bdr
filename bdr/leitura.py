@@ -69,6 +69,7 @@ ALIASES = {
         "situacao_registro": ["DS_SITUACAO_CANDIDATURA", "DES_SITUACAO_CANDIDATURA",
                               "DS_DETALHE_SITUACAO_CAND"],
         "dt_nascimento": ["DT_NASCIMENTO", "DATA_NASCIMENTO"],
+        "uf_nascimento": ["SG_UF_NASCIMENTO", "SIGLA_UF_NASCIMENTO"],
         "idade_eleicao": ["NR_IDADE_DATA_POSSE", "IDADE_DATA_ELEICAO"],
         "genero": ["DS_GENERO", "DESCRICAO_SEXO"],
         "escolaridade": ["DS_GRAU_INSTRUCAO", "DESCRICAO_GRAU_INSTRUCAO"],

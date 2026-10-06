@@ -9,10 +9,12 @@ TABELAS_TRAJETORIA = {
         ordem_hierarquica INTEGER""",
     "candidato": """
         id_candidato VARCHAR PRIMARY KEY,
+        titulo_eleitoral VARCHAR,
         nome VARCHAR,
         nome_urna VARCHAR,
         data_nascimento DATE,
         genero VARCHAR,
+        raca VARCHAR,
         grau_instrucao VARCHAR,
         ocupacao VARCHAR,
         uf_nascimento VARCHAR,
@@ -30,6 +32,9 @@ TABELAS_TRAJETORIA = {
         uf VARCHAR,
         cod_tse_municipio VARCHAR,
         numero_candidato INTEGER,
+        idade_eleicao INTEGER,
+        sequencial VARCHAR,
+        escolaridade_candidatura VARCHAR,
         situacao_registro VARCHAR,
         reeleicao BOOLEAN""",
     "resultado_candidatura": """

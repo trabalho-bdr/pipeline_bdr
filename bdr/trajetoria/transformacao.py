@@ -5,6 +5,21 @@ from pathlib import Path
 from .esquema import criar_tabelas
 
 
+def _cpf_valido(valor):
+    """Retorna somente CPF com os dois dígitos verificadores válidos."""
+    if valor is None:
+        return None
+    digitos = "".join(c for c in str(valor) if c.isdigit())
+    if len(digitos) != 11 or len(set(digitos)) == 1:
+        return None
+    for tamanho in (9, 10):
+        resto = sum(int(digitos[i]) * (tamanho + 1 - i) for i in range(tamanho)) % 11
+        verificador = 0 if resto < 2 else 11 - resto
+        if int(digitos[tamanho]) != verificador:
+            return None
+    return digitos
+
+
 ALIASES = {
     "ano": ["ANO_ELEICAO", "ANO"],
     "turno": ["NR_TURNO", "NUM_TURNO"],
@@ -14,10 +29,12 @@ ALIASES = {
     "dt_eleicao": ["DT_ELEICAO", "DATA_ELEICAO"],
     "sq_candidato": ["SQ_CANDIDATO", "SEQUENCIAL_CANDIDATO"],
     "cpf": ["NR_CPF_CANDIDATO", "CPF_CANDIDATO"],
+    "titulo": ["NR_TITULO_ELEITORAL_CANDIDATO", "NR_TITULO_ELEITORAL", "NR_TITULO_CANDIDATO"],
     "nome": ["NM_CANDIDATO", "NOME_CANDIDATO"],
     "nome_urna": ["NM_URNA_CANDIDATO", "NOME_URNA_CANDIDATO"],
     "nascimento": ["DT_NASCIMENTO", "DATA_NASCIMENTO"],
     "genero": ["DS_GENERO", "DESCRICAO_SEXO"],
+    "raca": ["DS_COR_RACA", "DS_RACA_COR", "DS_COR_RACA_CANDIDATO"],
     "instrucao": ["DS_GRAU_INSTRUCAO", "DESCRICAO_GRAU_INSTRUCAO"],
     "ocupacao": ["DS_OCUPACAO", "DESCRICAO_OCUPACAO"],
     "uf_nascimento": ["SG_UF_NASCIMENTO", "SIGLA_UF_NASCIMENTO"],
@@ -28,6 +45,7 @@ ALIASES = {
     "nome_partido": ["NM_PARTIDO", "NOME_PARTIDO"],
     "cod_municipio": ["SG_UE", "CD_MUNICIPIO", "CODIGO_MUNICIPIO"],
     "numero_candidato": ["NR_CANDIDATO", "NUMERO_CANDIDATO"],
+    "idade": ["NR_IDADE_DATA_POSSE", "NR_IDADE_DATA_ELEICAO"],
     "situacao_registro": ["DS_SITUACAO_CANDIDATURA", "DS_DETALHE_SITUACAO_CAND"],
     "resultado": ["DS_SIT_TOT_TURNO", "DESC_SIT_TOT_TURNO"],
     "reeleicao": ["ST_REELEICAO"],
@@ -44,6 +62,10 @@ def _ident(valor):
 
 
 def _fonte(arquivos):
+    if isinstance(arquivos, str):
+        if not arquivos.replace("_", "").isalnum():
+            raise ValueError("Nome inválido de tabela de staging")
+        return arquivos
     lista = ", ".join(_lit(Path(a).as_posix()) for a in arquivos)
     return f"read_csv([{lista}], delim=';', header=true, all_varchar=true, union_by_name=true)"
 
@@ -71,6 +93,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos):
     if not arquivos_candidatos:
         raise ValueError("Nenhum arquivo consulta_cand foi encontrado.")
     criar_tabelas(con)
+    con.create_function("cpf_valido_bdr", _cpf_valido, ["VARCHAR"], "VARCHAR", null_handling="special")
     cand = _fonte(arquivos_candidatos)
     cc = _colunas(con, cand)
 
@@ -96,23 +119,27 @@ def carregar(con, arquivos_candidatos, arquivos_votos):
     id_candidatura = (
         "md5(cast(" + ano + " AS VARCHAR) || '|' || coalesce(" + eleicao + ", 'NA') || '|' || "
         "cast(" + turno + " AS VARCHAR) || '|' || coalesce(" + uf + ", '') || '|' || "
+        "coalesce(" + cod_mun + ", '') || '|' || "
         "coalesce(" + sq + ", " + nome + ") || '|' || coalesce(" + cd_cargo + ", 'NA'))"
     )
 
     con.execute(f"""
-        CREATE OR REPLACE TEMP VIEW src_candidatura AS
+        CREATE OR REPLACE TEMP TABLE src_candidatura AS
         SELECT
             {id_candidatura} AS id_candidatura,
             {id_pessoa} AS id_candidato,
+            {_expr(cc, 'titulo')} AS titulo_eleitoral,
             {ano} AS ano,
             {eleicao} AS cd_eleicao,
             {turno} AS turno,
             {uf} AS uf,
             {sq} AS sq_candidato,
+            cpf_valido_bdr({cpf}) AS cpf_validado,
             {nome} AS nome,
             {_expr(cc, 'nome_urna')} AS nome_urna,
             {nascimento} AS data_nascimento,
             {_expr(cc, 'genero')} AS genero,
+            {_expr(cc, 'raca')} AS raca,
             {_expr(cc, 'instrucao')} AS grau_instrucao,
             {_expr(cc, 'ocupacao')} AS ocupacao,
             {f'upper({_expr(cc, "uf_nascimento")})'} AS uf_nascimento,
@@ -124,6 +151,9 @@ def carregar(con, arquivos_candidatos, arquivos_votos):
             CASE WHEN regexp_matches(coalesce({cod_mun}, ''), '^[0-9]+$')
                  THEN lpad({cod_mun}, 5, '0') END AS cod_tse_municipio,
             try_cast({_expr(cc, 'numero_candidato')} AS INTEGER) AS numero_candidato,
+            try_cast({_expr(cc, 'idade')} AS INTEGER) AS idade_eleicao,
+            {sq} AS sequencial,
+            {_expr(cc, 'instrucao')} AS escolaridade_candidatura,
             {_expr(cc, 'situacao_registro')} AS situacao_registro,
             upper({_expr(cc, 'resultado')}) AS situacao_final,
             upper({_expr(cc, 'reeleicao')}) IN ('S', 'SIM', '1') AS reeleicao,
@@ -134,10 +164,38 @@ def carregar(con, arquivos_candidatos, arquivos_votos):
         WHERE {ano} IS NOT NULL AND {nome} IS NOT NULL
     """)
 
+    con.execute("""CREATE TEMP TABLE identidade_bio AS
+        SELECT bio_chave, count(DISTINCT cpf_validado) quant_cpf,
+               min(cpf_validado) cpf_unico
+        FROM (
+            SELECT cpf_validado,
+              CASE WHEN data_nascimento IS NOT NULL AND uf_nascimento IS NOT NULL
+                THEN regexp_replace(upper(strip_accents(trim(nome))), '\\s+', ' ', 'g')
+                     || '|' || cast(data_nascimento AS VARCHAR) || '|' || uf_nascimento END bio_chave
+            FROM src_candidatura)
+        WHERE bio_chave IS NOT NULL GROUP BY bio_chave""")
+    con.execute("""UPDATE src_candidatura s SET
+        id_candidato = CASE
+            WHEN s.cpf_validado IS NOT NULL THEN md5('CPF|' || s.cpf_validado)
+            WHEN i.quant_cpf = 1 THEN md5('CPF|' || i.cpf_unico)
+            WHEN i.quant_cpf = 0 THEN md5('BIO|' || i.bio_chave)
+            ELSE md5('BIO_UNICA|' || s.id_candidatura) END,
+        metodo_identidade = CASE
+            WHEN s.cpf_validado IS NOT NULL THEN 'CPF'
+            WHEN i.quant_cpf = 1 THEN 'BIO_MATCH_CPF'
+            WHEN i.quant_cpf = 0 THEN 'BIO'
+            ELSE 'AMBIGUA' END
+        FROM identidade_bio i
+        WHERE i.bio_chave = regexp_replace(upper(strip_accents(trim(s.nome))), '\\s+', ' ', 'g')
+            || '|' || cast(s.data_nascimento AS VARCHAR) || '|' || s.uf_nascimento""")
+    con.execute("""UPDATE src_candidatura SET
+        id_candidato=md5('BIO_UNICA|' || id_candidatura), metodo_identidade='AMBIGUA'
+        WHERE cpf_validado IS NULL AND (data_nascimento IS NULL OR uf_nascimento IS NULL)""")
+
     con.execute("""
         INSERT INTO candidato
-        SELECT id_candidato, max(nome), max(nome_urna), min(data_nascimento),
-               max(genero), max(grau_instrucao), max(ocupacao), max(uf_nascimento),
+        SELECT id_candidato, max(titulo_eleitoral), max(nome), max(nome_urna), min(data_nascimento),
+               max(genero), max(raca), max(grau_instrucao), max(ocupacao), max(uf_nascimento),
                max(metodo_identidade), count(DISTINCT nome) > 1
         FROM src_candidatura GROUP BY id_candidato
     """)
@@ -159,7 +217,8 @@ def carregar(con, arquivos_candidatos, arquivos_votos):
         INSERT INTO candidatura
         SELECT id_candidatura, id_candidato, ano, cd_eleicao, turno, cd_cargo,
                numero_partido, sigla_partido, uf, cod_tse_municipio,
-               numero_candidato, situacao_registro, reeleicao
+               numero_candidato, idade_eleicao, sequencial, escolaridade_candidatura,
+               situacao_registro, reeleicao
         FROM src_candidatura
         QUALIFY row_number() OVER (PARTITION BY id_candidatura ORDER BY sq_candidato) = 1
     """)
@@ -191,11 +250,13 @@ def carregar(con, arquivos_candidatos, arquivos_votos):
         vu = f"upper({_expr(cv, 'uf')})"
         vsq = _expr(cv, "sq_candidato")
         vcargo = _expr(cv, "cd_cargo", "'NA'")
+        vmunicipio = _expr(cv, "cod_municipio")
         vvotos = f"coalesce(try_cast({_expr(cv, 'votos')} AS BIGINT), 0)"
         con.execute(f"""
             CREATE OR REPLACE TEMP VIEW votos_candidatura AS
             SELECT md5(cast({va} AS VARCHAR) || '|' || coalesce({ve}, 'NA') || '|' ||
                        cast({vt} AS VARCHAR) || '|' || coalesce({vu}, '') || '|' ||
+                       coalesce({vmunicipio}, '') || '|' ||
                        coalesce({vsq}, '') || '|' || coalesce({vcargo}, 'NA')) AS id_candidatura,
                    sum({vvotos}) AS votos
             FROM {votos}
