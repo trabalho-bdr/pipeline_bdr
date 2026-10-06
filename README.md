@@ -268,3 +268,27 @@ uv run python executar_trajetoria.py \
 
 Se as tabelas históricas já existirem, a substituição exige a opção explícita
 `--substituir`. O token é solicitado de forma oculta e nunca é salvo no projeto.
+
+---
+
+## 12. Interface de apuração (Streamlit)
+
+A interface lê diretamente as dez tabelas do DER. Depois de gerar o banco local,
+execute na raiz do projeto:
+
+```bash
+uv sync
+uv run streamlit run bdr/app_apuracao.py
+```
+
+Por padrão, o painel consulta `md:pipeline_bdr_der_completo`. Configure
+`MOTHERDUCK_TOKEN` no ambiente antes de iniciar o Streamlit ou informe o token
+no campo protegido da barra lateral. Se quiser consultar um banco local, informe
+o caminho do arquivo `.duckdb` no campo **Banco DER**.
+
+As consultas do painel ficam separadas por questão em `bdr/consultas_q3.sql` e
+`bdr/consultas_q10.sql`. Os dois arquivos documentam parâmetros, regras analíticas
+e referências temporais. A interface carrega os blocos nomeados desses arquivos;
+não mantém SQL embutido no código do Streamlit. Na trajetória eleitoral, a pessoa
+é relacionada por `id_candidato` e o painel usa somente o nome civil, sem consultar
+ou exibir nome de urna.
