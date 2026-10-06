@@ -69,6 +69,22 @@ Faça o upload desse arquivo ZIP no Google Drive da equipe.
 | **Recorte livre para testes** | `uv run python executar.py --ufs RN --anos 2024` |
 | **Consolidação dos 4 membros** | `uv run python juntar.py membro1_para_drive.zip membro2_para_drive.zip membro3_para_drive.zip membro4_para_drive.zip` |
 
+## 5. Importar IDHM das planilhas
+
+Para carregar os arquivos `.xlsx` da pasta `planilhas` no banco do recorte dos seis estados:
+
+```powershell
+uv run python carregar_idhm.py
+```
+
+O comando gera `dados_bdr/fontes/idhm.csv` e atualiza a tabela `censo_municipio` com `ano_referencia = 2010`, sem alterar população ou PIB de 2022.
+
+Para usar outro banco:
+
+```powershell
+uv run python carregar_idhm.py --banco caminho\para\outro.duckdb
+```
+
 ---
 
 ## 4. O que é baixado (e o que NÃO é baixado)
