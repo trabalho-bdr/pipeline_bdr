@@ -101,7 +101,42 @@ def votos_q3(alvo, uf, ano, turno, cargo):
 def candidaturas_q10(alvo, uf):
     return sql(conectar(alvo), """
         SELECT ca.id_candidato, c.nome_urna, ca.ano, cg.nome AS cargo,
-               cg.ordem_hierarquica AS ordem, ca.sigla_partido AS partido,
+               coalesce(
+                   cg.ordem_hierarquica,
+                   CASE upper(trim(cg.nome))
+                       WHEN 'VEREADOR' THEN 1
+                       WHEN 'PREFEITO' THEN 2
+                       WHEN 'VICE-PREFEITO' THEN 2
+                       WHEN 'DEPUTADO ESTADUAL' THEN 3
+                       WHEN 'DEPUTADO DISTRITAL' THEN 3
+                       WHEN 'DEPUTADO FEDERAL' THEN 4
+                       WHEN 'SENADOR' THEN 5
+                       WHEN '1º SUPLENTE SENADOR' THEN 5
+                       WHEN '2º SUPLENTE SENADOR' THEN 5
+                       WHEN 'GOVERNADOR' THEN 6
+                       WHEN 'VICE-GOVERNADOR' THEN 6
+                       WHEN 'PRESIDENTE' THEN 7
+                       WHEN 'VICE-PRESIDENTE' THEN 7
+                       ELSE NULL
+                   END,
+                   CASE trim(ca.cd_cargo)
+                       WHEN '13' THEN 1
+                       WHEN '11' THEN 2
+                       WHEN '12' THEN 2
+                       WHEN '7' THEN 3
+                       WHEN '8' THEN 3
+                       WHEN '6' THEN 4
+                       WHEN '5' THEN 5
+                       WHEN '9' THEN 5
+                       WHEN '10' THEN 5
+                       WHEN '3' THEN 6
+                       WHEN '4' THEN 6
+                       WHEN '1' THEN 7
+                       WHEN '2' THEN 7
+                       ELSE NULL
+                   END
+               ) AS ordem,
+               ca.sigla_partido AS partido,
                coalesce(r.eleito, false) AS eleito, r.votos
         FROM candidatura ca
         JOIN candidato c USING (id_candidato)
@@ -286,12 +321,29 @@ with col_det:
                         escolha = st.selectbox("Candidato", ids.index, format_func=lambda i: ids[i])
                         c = d[d["id_candidato"] == escolha].sort_values("ano")
                         f = px.scatter(c, x="ano", y="ordem", color="partido", symbol="eleito",
-                                       hover_data=["cargo", "votos"], size_max=14,
+                                       hover_data=["cargo", "votos"], size_max=16,
                                        symbol_map={True: "star", False: "circle-open"})
-                        f.update_traces(marker_size=14)
+                        f.update_traces(marker_size=16)
                         f.update_xaxes(dtick=2)
-                        f.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
-                                        yaxis_title="Nível do cargo (ordem hierárquica)")
+                        f.update_layout(
+                            template="plotly_dark",
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            yaxis=dict(
+                                tickmode="array",
+                                tickvals=[1, 2, 3, 4, 5, 6, 7],
+                                ticktext=[
+                                    "1 · Vereador",
+                                    "2 · Prefeito",
+                                    "3 · Dep. Estadual",
+                                    "4 · Dep. Federal",
+                                    "5 · Senador",
+                                    "6 · Governador",
+                                    "7 · Presidente",
+                                ],
+                                range=[0.5, 7.5],
+                                title="Nível do cargo (ordem hierárquica)"
+                            )
+                        )
                         st.plotly_chart(f, use_container_width=True)
                         st.dataframe(c[["ano", "cargo", "partido", "votos", "eleito"]],
                                      use_container_width=True, hide_index=True)
