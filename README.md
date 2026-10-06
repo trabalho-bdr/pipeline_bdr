@@ -183,7 +183,39 @@ uv run python juntar.py \
 
 ---
 
-## 8. Formato Esperado para o IDHM Local
+## 8. Enviar o banco local ao MotherDuck
+
+Para processar as seis UFs e, ao final, enviar todas as tabelas ao MotherDuck:
+
+```bash
+uv run python executar.py --ufs CE MA MS RJ RN RS --anos 2022 2024 \
+  --etapas baixar carregar exportar motherduck \
+  --motherduck-db pipeline_bdr_completo
+```
+
+Se o token não estiver definido no ambiente, o programa irá solicitá-lo de forma
+oculta no terminal. O token não é salvo no código nem no banco local.
+
+Depois de executar a etapa `carregar`, cada membro pode entregar seu ZIP à pessoa responsável pelo banco MotherDuck. Essa pessoa define seu token na sessão do PowerShell e usa **o mesmo nome de banco**, `pipeline_bdr_completo`, ao importar cada banco local:
+
+```powershell
+$env:MOTHERDUCK_TOKEN = "seu-token"
+uv run python executar.py --membro 3 --etapas motherduck --motherduck-db pipeline_bdr_completo
+```
+
+O primeiro envio cria o banco; os seguintes acrescentam os municípios e dados das outras UFs às mesmas seis tabelas. Para importar membros de computadores diferentes, reúna os ZIPs e use o comando de consolidação abaixo. Se uma UF já estiver no banco, o envio individual interrompe para evitar repetição. O campo `uf` está na tabela `municipio`; consulte os votos por UF com `SELECT m.uf, v.* FROM pipeline_bdr_completo.main.votos_partido_municipio v JOIN pipeline_bdr_completo.main.municipio m ON m.cod_tse = v.cod_tse_municipio`. Não coloque o token no código ou no repositório.
+
+Se preferir juntar os quatro ZIPs em um computador antes do envio, coloque-os em `dados_bdr/saida/` e execute:
+
+```powershell
+uv run python juntar.py dados_bdr/saida/membro1_para_drive.zip dados_bdr/saida/membro2_para_drive.zip dados_bdr/saida/membro3_para_drive.zip dados_bdr/saida/membro4_para_drive.zip --motherduck-db pipeline_bdr_completo
+```
+
+Isso cria `dados_bdr/bdr_consolidado.duckdb` e envia o banco ao MotherDuck. Use um nome remoto novo nesse modo de consolidação.
+
+---
+
+## 9. Formato Esperado para o IDHM Local
 
 Caso o grupo deseje incluir ou atualizar dados municipais de IDHM, utilize o arquivo `dados_bdr/fontes/idhm.csv`:
 
@@ -199,10 +231,40 @@ id_municipio;ano_referencia;idhm
 
 ---
 
-## 9. Limitações Metodológicas
+## 10. Limitações Metodológicas
 
 - **Referência histórica do IDHM:** O último IDHM municipal oficial no Brasil refere-se ao Censo 2010. Não se deve criar valores artificiais para 2022 ou 2024. O IDHM deve ser interpretado como indicador estrutural histórico de longo prazo ao compará-lo com as eleições de 2022/2024.
 - **Diferenças entre as eleições de 2022 e 2024:** A eleição de 2022 é geral (Presidente, Governador, Senador, Deputados Federais e Estaduais) e a de 2024 é municipal (Prefeito e Vereador). O eleitorado municipal e o comportamento eleitoral refletem naturezas e dinâmicas políticas distintas.
 - **Não agregação cega de cargos:** A tabela `votos_partido_municipio` mantém a chave `cd_cargo`, impedindo a soma indevida de votos majoritários e proporcionais ou de cargos distintos.
 - **Granularidade do Boletim de Urna:** Como cada linha do BU representa uma opção de voto, campos como `QT_APTOS`, `QT_COMPARECIMENTO` e `QT_ABSTENCOES` se repetem para cada cargo e candidato na urna. A pipeline realiza a deduplicação obrigatória no nível de seção/urna antes de somar para o município.
 - **Descompasso temporal entre fontes:** Indicadores socioeconômicos (PIB 2022, População Censo 2022, IDHM 2010) e resultados eleitorais (2022 e 2024) possuem referências temporais próprias, preservadas explicitamente na coluna `ano_referencia`.
+
+---
+
+## 11. Trajetória eleitoral dos candidatos (Questão 10)
+
+A pipeline histórica é independente da Questão 3 e usa `consulta_cand` e
+`votacao_candidato_munzona` do TSE entre 2002 e 2024:
+
+```bash
+uv run python executar_trajetoria.py \
+  --ufs CE MA MS RJ RN RS \
+  --anos 2002 2004 2006 2008 2010 2012 2014 2016 2018 2020 2022 2024
+```
+
+Os dados temporários ficam em `dados_bdr/q10/`. O banco, o manifesto de validação
+e o backup Parquet ficam em `dados_bdr/q10/saida/trajetoria_CE-MA-MS-RJ-RN-RS/`.
+Nenhum dado é enviado ao MotherDuck por padrão.
+
+Depois que todas as validações passarem:
+
+```bash
+uv run python executar_trajetoria.py \
+  --ufs CE MA MS RJ RN RS \
+  --anos 2002 2004 2006 2008 2010 2012 2014 2016 2018 2020 2022 2024 \
+  --etapas motherduck \
+  --motherduck-db pipeline_bdr_completo
+```
+
+Se as tabelas históricas já existirem, a substituição exige a opção explícita
+`--substituir`. O token é solicitado de forma oculta e nunca é salvo no projeto.

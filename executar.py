@@ -24,6 +24,7 @@ import sys
 
 from bdr.config import MEMBROS, montar_escopo
 from bdr.leitura import ErroLayout
+from bdr.motherduck import enviar_membro
 from bdr.pipeline import Pastas, etapa_baixar, etapa_carregar, etapa_exportar
 
 
@@ -34,14 +35,23 @@ def main():
                       help="número do membro do grupo (processa as 2 UFs atribuídas)")
     quem.add_argument("--ufs", nargs="+", help="recorte livre de UFs (ex.: RJ RN)")
     p.add_argument("--anos", type=int, nargs="+", help="anos a processar (padrão: 2022 2024)")
-    p.add_argument("--etapas", nargs="+", choices=["baixar", "carregar", "exportar"],
+    p.add_argument("--etapas", nargs="+", choices=["baixar", "carregar", "exportar", "motherduck"],
                    default=["baixar", "carregar", "exportar"],
                    help="etapas a executar (padrão: baixar carregar exportar)")
+    p.add_argument("--motherduck-db", help="nome do banco compartilhado no MotherDuck (usado com --etapas motherduck)")
+    p.add_argument("--substituir-ufs", action="store_true",
+                   help="substitui no MotherDuck as UFs já existentes pela versão local")
+    p.add_argument("--remover-ufs-motherduck", nargs="+", metavar="UF",
+                   help="remove estas UFs do MotherDuck durante a atualização")
     p.add_argument("--dir", default="dados_bdr", help="pasta base de dados (padrão: dados_bdr)")
     p.add_argument("--de-para", default="dados_bdr/fontes/municipio_tse_ibge.csv",
                    help="CSV de correspondência município TSE <-> IBGE (opcional)")
     p.add_argument("--apagar-zips", action="store_true", help="apaga os ZIPs baixados após extração")
     a = p.parse_args()
+    if "motherduck" in a.etapas and not a.motherduck_db:
+        p.error("--etapas motherduck exige --motherduck-db")
+    if a.motherduck_db and "motherduck" not in a.etapas:
+        p.error("--motherduck-db exige --etapas motherduck")
 
     escopo = montar_escopo(a.membro, a.ufs, a.anos)
     pastas = Pastas(a.dir, escopo["rotulo"])
@@ -63,6 +73,14 @@ def main():
         if "exportar" in a.etapas:
             zip_final = etapa_exportar(pastas)
             print(f"\nPacote exportado para o Drive: {zip_final}")
+        if "motherduck" in a.etapas:
+            nome = enviar_membro(
+                pastas.banco, a.motherduck_db, a.substituir_ufs,
+                a.remover_ufs_motherduck,
+            )
+            print(f"\nDados do membro adicionados ao banco MotherDuck: {nome}")
+    except ValueError as e:
+        sys.exit(f"\nERRO: {e}")
     except ErroLayout as e:
         sys.exit(f"\nERRO DE LAYOUT: {e}")
 

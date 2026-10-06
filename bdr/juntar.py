@@ -62,6 +62,7 @@ def juntar(pacotes, banco_saida, pasta_tmp):
             manifestos.append(dados)
             print(f"   {dados.get('rotulo', pasta.name)}: UFs {', '.join(dados.get('ufs', []))}")
 
+    Path(banco_saida).parent.mkdir(parents=True, exist_ok=True)
     Path(banco_saida).unlink(missing_ok=True)
     con = duckdb.connect(str(banco_saida))
     for tabela, colunas in TABELAS.items():
@@ -105,9 +106,17 @@ def _relatorio(con, manifestos):
         print(f"   {ano}: {nom:,} nominais | {leg:,} legenda")
 
     partic = con.execute("""
+        WITH municipio_turno AS (
+            SELECT ano, turno, cod_tse_municipio,
+                   max(eleitorado_apto) AS eleitorado_apto,
+                   max(comparecimento) AS comparecimento,
+                   max(abstencoes) AS abstencoes
+            FROM participacao_eleitoral
+            GROUP BY ano, turno, cod_tse_municipio
+        )
         SELECT ano, turno, sum(eleitorado_apto), sum(comparecimento), sum(abstencoes),
                round(100.0 * sum(abstencoes) / nullif(sum(eleitorado_apto), 0), 2)
-        FROM participacao_eleitoral
+        FROM municipio_turno
         GROUP BY ano, turno ORDER BY ano, turno
     """).fetchall()
     print("\nParticipação Eleitoral Consolidada:")

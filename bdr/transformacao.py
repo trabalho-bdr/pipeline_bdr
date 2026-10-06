@@ -102,9 +102,10 @@ CARGAS_BASE = {
         GROUP BY ano, cd_eleicao, cd_cargo, turno, numero_partido, sigla_partido, cod_tse_municipio""",
 }
 
-# 1. Agregação oficial a partir de detalhe_votacao_munzona (seção/zona)
-SQL_PARTICIPACAO_DETALHE = """
-WITH zona_urna AS (
+# 1. Agregação híbrida: detalhe oficial quando disponível e BU para eleições
+# ausentes no detalhe (ex.: eleição presidencial, 2º turno de 2022).
+SQL_PARTICIPACAO_HIBRIDA = """
+WITH detalhe_zona AS (
     SELECT
         ano,
         cd_eleicao,
@@ -117,6 +118,55 @@ WITH zona_urna AS (
     FROM v_det
     WHERE ano IS NOT NULL AND cod_tse_municipio IS NOT NULL
     GROUP BY ano, cd_eleicao, turno, cod_tse_municipio, nr_zona
+), detalhe_municipio AS (
+    SELECT
+        ano,
+        cd_eleicao,
+        turno,
+        cod_tse_municipio,
+        sum(aptos) AS aptos,
+        sum(comparecimento) AS comparecimento,
+        sum(abstencoes) AS abstencoes
+    FROM detalhe_zona
+    GROUP BY ano, cd_eleicao, turno, cod_tse_municipio
+), bu_secao AS (
+    SELECT
+        ano,
+        cd_eleicao,
+        turno,
+        cod_tse_municipio,
+        nr_zona,
+        nr_secao,
+        max(aptos) AS aptos,
+        max(comparecimento) AS comparecimento,
+        max(abstencoes) AS abstencoes
+    FROM v_bu
+    WHERE ano IS NOT NULL AND cod_tse_municipio IS NOT NULL
+    GROUP BY ano, cd_eleicao, turno, cod_tse_municipio, nr_zona, nr_secao
+), bu_municipio AS (
+    SELECT
+        ano,
+        cd_eleicao,
+        turno,
+        cod_tse_municipio,
+        sum(aptos) AS aptos,
+        sum(comparecimento) AS comparecimento,
+        sum(abstencoes) AS abstencoes
+    FROM bu_secao
+    GROUP BY ano, cd_eleicao, turno, cod_tse_municipio
+), combinado AS (
+    SELECT * FROM detalhe_municipio
+    UNION ALL
+    SELECT b.*
+    FROM bu_municipio b
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM detalhe_municipio d
+        WHERE d.ano = b.ano
+          AND d.cd_eleicao = b.cd_eleicao
+          AND d.turno = b.turno
+          AND d.cod_tse_municipio = b.cod_tse_municipio
+    )
 )
 INSERT INTO participacao_eleitoral
 SELECT
@@ -129,7 +179,7 @@ SELECT
     sum(comparecimento) AS comparecimento,
     sum(abstencoes) AS abstencoes,
     sum(abstencoes)::DOUBLE / nullif(sum(aptos), 0) AS taxa_abstencao
-FROM zona_urna
+FROM combinado
 GROUP BY ano, cd_eleicao, turno, cod_tse_municipio
 """
 
@@ -187,8 +237,8 @@ def montar_tabelas(con, de_para=None):
         tem_detalhe = con.execute("SELECT count(*) FROM stg_detalhe_votacao_munzona").fetchone()[0] > 0
 
     if tem_detalhe:
-        con.execute(SQL_PARTICIPACAO_DETALHE)
-        fonte_partic = "detalhe_votacao_munzona"
+        con.execute(SQL_PARTICIPACAO_HIBRIDA)
+        fonte_partic = "detalhe_votacao_munzona + BU para eleições ausentes"
     else:
         con.execute(SQL_PARTICIPACAO_BU)
         fonte_partic = "boletim_urna (deduplicado)"
@@ -234,7 +284,8 @@ def montar_tabelas(con, de_para=None):
                 c.populacao,
                 c.pib,
                 c.pib / nullif(c.populacao, 0) AS pib_per_capita,
-                NULL AS idhm
+                (SELECT max(h.idhm) FROM stg_idhm h
+                 WHERE h.id_municipio = c.id_municipio) AS idhm
             FROM stg_ibge_censo c
             JOIN municipio m ON m.id_municipio = c.id_municipio
         """)

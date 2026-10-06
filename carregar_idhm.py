@@ -86,8 +86,8 @@ def main():
     parser.add_argument("--fontes", default="dados_bdr/fontes", help="pasta para o idhm.csv")
     parser.add_argument(
         "--banco",
-        default="dados_bdr/saida/recorte_CE-MA-MS-RJ-RN-RS/bdr_recorte_CE-MA-MS-RJ-RN-RS.duckdb",
-        help="arquivo DuckDB de destino",
+        default="dados_bdr/saida/pipeline_bdr_der_completo.duckdb",
+        help="arquivo DuckDB de destino (padrão: DER completo)",
     )
     args = parser.parse_args()
 
@@ -127,28 +127,30 @@ def main():
             )
         """)
         con.executemany("INSERT INTO novos_idhm VALUES (?, ?, ?)", registros)
-        con.execute("""
-            INSERT INTO censo_municipio
-                (id_municipio, ano_referencia, populacao, pib, pib_per_capita, idhm)
-            SELECT id_municipio, ano_referencia, NULL, NULL, NULL, idhm
-            FROM novos_idhm
-            ON CONFLICT (id_municipio, ano_referencia) DO UPDATE
-                SET idhm = EXCLUDED.idhm
+        tabelas = {r[0].lower(): r[0] for r in con.execute("SHOW TABLES").fetchall()}
+        nome_tabela = tabelas.get("censo_municipio")
+        if not nome_tabela:
+            raise RuntimeError("A tabela censo_municipio/Censo_Municipio não existe no banco")
+        tabela = '"' + nome_tabela.replace('"', '""') + '"'
+        con.execute(f"""
+            UPDATE {tabela} AS c
+            SET idhm = n.idhm
+            FROM novos_idhm AS n
+            WHERE c.id_municipio = n.id_municipio
         """)
         total, preenchidos, sem_municipio = con.execute("""
             SELECT
                 count(*),
                 count(idhm),
                 count(*) FILTER (WHERE id_municipio NOT IN (SELECT id_municipio FROM municipio))
-            FROM censo_municipio
-            WHERE ano_referencia = 2010
+            FROM """ + tabela + """
         """).fetchone()
         con.commit()
     finally:
         con.close()
 
     print(f"Banco atualizado: {banco}")
-    print(f"IDHM 2010: {preenchidos:,}/{total:,} registros; códigos fora de municipio: {sem_municipio:,}")
+    print(f"IDHM municipal: {preenchidos:,}/{total:,} registros; códigos fora de municipio: {sem_municipio:,}")
 
 
 if __name__ == "__main__":
