@@ -52,6 +52,7 @@ SELECT
     -- Município pode ser nulo em candidaturas estaduais ou nacionais.
     m.nome AS municipio,
     ca.uf,
+    ca.patrimonio,
     r.votos,
     -- Preserva o texto oficial; não reduz a situação apenas a eleito/não eleito.
     r.resultado,

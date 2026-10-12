@@ -30,9 +30,9 @@ class ConsultasApuracaoTest(unittest.TestCase):
             ('pe2','m2',2024,NULL,160000,144000,16000,0.10)""")
         self.con.execute("""INSERT INTO "Candidatura" VALUES
             ('ca1','e1','cand1','m1','p1','RJ','NOME DE URNA PROIBIDO',10,44,
-             'APTO','seq1','SUPERIOR'),
+             'APTO','seq1','SUPERIOR',NULL),
             ('ca2','e2','cand1',NULL,'p2','MS','OUTRO NOME DE URNA',20,42,
-             'APTO','seq2','SUPERIOR')""")
+             'APTO','seq2','SUPERIOR',NULL)""")
         self.con.execute("""INSERT INTO "Resultado_Candidatura" VALUES
             ('r1','ca1',1,'ELEITO POR QP',12345),
             ('r2','ca2',1,'NÃO ELEITO',2345)""")

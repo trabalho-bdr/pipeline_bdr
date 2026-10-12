@@ -64,6 +64,7 @@ def _fonte_candidatos(con):
         numero_urna NR_CANDIDATO, idade_eleicao NR_IDADE_DATA_POSSE,
         situacao_registro DS_SITUACAO_CANDIDATURA,
         resultado DS_SIT_TOT_TURNO,
+        patrimonio VR_BEM_CANDIDATO,
         titulo_eleitoral NR_TITULO_ELEITORAL_CANDIDATO
         FROM stg_consulta_cand""")
 

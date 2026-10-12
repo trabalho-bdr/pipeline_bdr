@@ -48,6 +48,7 @@ ALIASES = {
     "idade": ["NR_IDADE_DATA_POSSE", "NR_IDADE_DATA_ELEICAO"],
     "situacao_registro": ["DS_SITUACAO_CANDIDATURA", "DS_DETALHE_SITUACAO_CAND"],
     "resultado": ["DS_SIT_TOT_TURNO", "DESC_SIT_TOT_TURNO"],
+    "patrimonio": ["VR_BEM_CANDIDATO", "VALOR_BENS"],
     "reeleicao": ["ST_REELEICAO"],
     "votos": ["QT_VOTOS_NOMINAIS", "QTD_VOTOS_NOMINAIS", "QT_VOTOS"],
 }
@@ -156,6 +157,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos):
             {_expr(cc, 'instrucao')} AS escolaridade_candidatura,
             {_expr(cc, 'situacao_registro')} AS situacao_registro,
             upper({_expr(cc, 'resultado')}) AS situacao_final,
+            try_cast(replace(replace({_expr(cc, 'patrimonio')}, '.', ''), ',', '.') AS DOUBLE) AS patrimonio,
             upper({_expr(cc, 'reeleicao')}) IN ('S', 'SIM', '1') AS reeleicao,
             {_expr(cc, 'ds_eleicao')} AS ds_eleicao,
             {_data(_expr(cc, 'dt_eleicao'))} AS dt_eleicao,
@@ -218,7 +220,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos):
         SELECT id_candidatura, id_candidato, ano, cd_eleicao, turno, cd_cargo,
                numero_partido, sigla_partido, uf, cod_tse_municipio,
                numero_candidato, idade_eleicao, sequencial, escolaridade_candidatura,
-               situacao_registro, reeleicao
+               situacao_registro, patrimonio, reeleicao
         FROM src_candidatura
         QUALIFY row_number() OVER (PARTITION BY id_candidatura ORDER BY sq_candidato) = 1
     """)

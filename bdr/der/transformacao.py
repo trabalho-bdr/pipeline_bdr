@@ -87,7 +87,7 @@ def construir(q3, q10, destino, consulta_cand=()):
                WHERE (p.ano=2022 AND p.cd_eleicao='544' AND p.turno=1)
                   OR (p.ano=2024 AND p.cd_eleicao='619' AND p.turno=1)''',
                 '''INSERT INTO "Candidatura" SELECT c.id_candidatura,e.id_eleicao,c.id_candidato,m.id_municipio,p.id_partido,
-                    c.uf,cand.nome_urna,c.numero_candidato,c.idade_eleicao,c.situacao_registro,c.sequencial,c.escolaridade_candidatura
+                    c.uf,cand.nome_urna,c.numero_candidato,c.idade_eleicao,c.situacao_registro,c.sequencial,c.escolaridade_candidatura,c.patrimonio
                FROM q10.main.candidatura c JOIN eleicao_chave e ON e.ano=c.ano AND e.cd_eleicao=c.cd_eleicao
                  AND e.turno=c.turno AND e.cd_cargo=c.cd_cargo
                     LEFT JOIN q10.main.candidato cand ON cand.id_candidato=c.id_candidato

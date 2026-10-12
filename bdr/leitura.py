@@ -76,6 +76,7 @@ ALIASES = {
         "raca": ["DS_COR_RACA", "DESCRICAO_COR_RACA"],
         "ocupacao": ["DS_OCUPACAO", "DESCRICAO_OCUPACAO"],
         "resultado": ["DS_SIT_TOT_TURNO", "DESC_SIT_TOT_TURNO"],
+        "patrimonio": ["VR_BEM_CANDIDATO", "VALOR_BENS"],
     },
     "votacao_partido_munzona": {
         **_ELEICAO, **_MUNZONA, **_PARTIDO,
