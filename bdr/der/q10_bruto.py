@@ -48,6 +48,26 @@ def _votos_arquivo(con, caminho):
         GROUP BY 1,2,3,4,5,6,7""")
 
 
+def _despesas_arquivo(con, caminho):
+    fonte = f"read_csv({_lit(caminho.as_posix())}, delim=';', header=true, all_varchar=true)"
+    cols = {r[0].upper(): r[0] for r in con.execute(f"DESCRIBE SELECT * FROM {fonte}").fetchall()}
+
+    def campo(*nomes, padrao="NULL"):
+        for nome in nomes:
+            if nome in cols:
+                return f"nullif(trim({_ident(cols[nome])}), '')"
+        return padrao
+
+    con.execute(f"""INSERT INTO stg_despesas
+        SELECT {campo('ANO_ELEICAO', 'ANO')}, {campo('SG_UF', 'SIGLA_UF')},
+               {campo('CD_ELEICAO', 'CODIGO_ELEICAO')},
+               {campo('SQ_CANDIDATO', 'SEQUENCIAL_CANDIDATO')},
+               {campo('DS_TIPO_DESPESA', 'DESCRICAO_TIPO_DESPESA', 'DS_DESPESA')},
+               {campo('VR_DESPESA_CONTRATADA', 'VALOR_DESPESA_CONTRATADA')}
+        FROM {fonte}
+    """)
+
+
 def _fonte_candidatos(con):
     con.execute("""CREATE TEMP VIEW fonte_candidatos AS SELECT
         ano ANO_ELEICAO, turno NR_TURNO, uf SG_UF,
@@ -83,8 +103,13 @@ def processar(ufs, anos, banco, trabalho):
             ANO_ELEICAO VARCHAR, NR_TURNO VARCHAR, SG_UF VARCHAR,
             CD_ELEICAO VARCHAR, SG_UE VARCHAR, SQ_CANDIDATO VARCHAR,
             CD_CARGO VARCHAR, QT_VOTOS_NOMINAIS VARCHAR)""")
+        con.execute("""CREATE TABLE stg_despesas (
+            ANO_ELEICAO VARCHAR, SG_UF VARCHAR, CD_ELEICAO VARCHAR,
+            SQ_CANDIDATO VARCHAR, DS_TIPO_DESPESA VARCHAR,
+            VR_DESPESA_CONTRATADA VARCHAR)""")
         for ano in anos:
-            for recurso in ("consulta_cand", "votacao_candidato_munzona"):
+            for recurso in ("consulta_cand", "votacao_candidato_munzona",
+                            "despesas_contratadas_candidatos"):
                 cfg = RECURSOS[recurso]
                 nome = cfg["zip"].format(ano=ano)
                 zip_path = trabalho / "zips" / recurso / f"{nome}.zip"
@@ -97,8 +122,10 @@ def processar(ufs, anos, banco, trabalho):
                     arquivo = arquivos[0]
                     if recurso == "consulta_cand":
                         carregar_arquivo(con, recurso, ano, arquivo)
-                    else:
+                    elif recurso == "votacao_candidato_munzona":
                         _votos_arquivo(con, arquivo)
+                    else:
+                        _despesas_arquivo(con, arquivo)
                     arquivo.unlink()  # CSV temporário já incorporado ao staging
                     print(f"Q10 {recurso} {ano}/{uf} carregado", flush=True)
                 zip_path.unlink()  # ZIP anual já extraído e carregado com sucesso
@@ -112,8 +139,9 @@ def processar(ufs, anos, banco, trabalho):
             FROM stg_consulta_cand GROUP BY 1,2,3,4""")
         criar_dimensoes_operacionais(con)
         _fonte_candidatos(con)
-        carregar(con, "fonte_candidatos", "stg_votos")
+        carregar(con, "fonte_candidatos", "stg_votos", "stg_despesas")
         con.execute("DROP TABLE stg_votos")
+        con.execute("DROP TABLE stg_despesas")
         con.execute("DROP TABLE stg_consulta_cand")
     finally:
         con.close()

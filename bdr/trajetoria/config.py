@@ -17,6 +17,14 @@ RECURSOS = {
             "votacao_candidato_munzona": "votacao_candidato_munzona_{ano}_{uf}"
         },
     },
+    "despesas_contratadas_candidatos": {
+        "pasta": "despesas_contratadas_candidatos",
+        "zip": "despesas_contratadas_candidatos_{ano}",
+        "partes": {
+            "despesas_contratadas_candidatos":
+                "despesas_contratadas_candidatos_{ano}_{uf}"
+        },
+    },
 }
 
 

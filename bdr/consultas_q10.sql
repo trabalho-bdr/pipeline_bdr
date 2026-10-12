@@ -53,6 +53,7 @@ SELECT
     m.nome AS municipio,
     ca.uf,
     ca.patrimonio,
+    ca.publicidade_propaganda,
     r.votos,
     -- Preserva o texto oficial; não reduz a situação apenas a eleito/não eleito.
     r.resultado,

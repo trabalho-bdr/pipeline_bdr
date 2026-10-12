@@ -49,6 +49,8 @@ ALIASES = {
     "situacao_registro": ["DS_SITUACAO_CANDIDATURA", "DS_DETALHE_SITUACAO_CAND"],
     "resultado": ["DS_SIT_TOT_TURNO", "DESC_SIT_TOT_TURNO"],
     "patrimonio": ["VR_BEM_CANDIDATO", "VALOR_BENS"],
+    "tipo_despesa": ["DS_TIPO_DESPESA", "DESCRICAO_TIPO_DESPESA", "DS_DESPESA"],
+    "valor_despesa": ["VR_DESPESA_CONTRATADA", "VALOR_DESPESA_CONTRATADA"],
     "reeleicao": ["ST_REELEICAO"],
     "votos": ["QT_VOTOS_NOMINAIS", "QTD_VOTOS_NOMINAIS", "QT_VOTOS"],
 }
@@ -90,7 +92,11 @@ def _data(expr):
     )
 
 
-def carregar(con, arquivos_candidatos, arquivos_votos):
+def _valor_monetario(expr):
+    return f"try_cast(replace(replace({expr}, '.', ''), ',', '.') AS DOUBLE)"
+
+
+def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
     if not arquivos_candidatos:
         raise ValueError("Nenhum arquivo consulta_cand foi encontrado.")
     criar_tabelas(con)
@@ -123,6 +129,34 @@ def carregar(con, arquivos_candidatos, arquivos_votos):
         "coalesce(" + cod_mun + ", '') || '|' || "
         "coalesce(" + sq + ", " + nome + ") || '|' || coalesce(" + cd_cargo + ", 'NA'))"
     )
+
+    despesas = _fonte(arquivos_despesas) if arquivos_despesas else None
+    if despesas:
+        dc = _colunas(con, despesas)
+        despesa_ano = f"try_cast({_expr(dc, 'ano')} AS INTEGER)"
+        despesa_uf = f"upper({_expr(dc, 'uf')})"
+        despesa_eleicao = _expr(dc, 'cd_eleicao', "'NA'")
+        despesa_sq = _expr(dc, 'sq_candidato')
+        despesa_tipo = _expr(dc, 'tipo_despesa')
+        despesa_valor = _valor_monetario(_expr(dc, 'valor_despesa'))
+        con.execute(f"""
+            CREATE OR REPLACE TEMP VIEW publicidade_por_candidatura AS
+                 SELECT {despesa_ano} AS despesa_ano, {despesa_uf} AS despesa_uf,
+                     {despesa_eleicao} AS despesa_eleicao, {despesa_sq} AS despesa_sq_candidato,
+                   sum({despesa_valor}) AS publicidade_propaganda
+            FROM {despesas}
+            WHERE lower(coalesce({despesa_tipo}, '')) LIKE '%publicidade%'
+               OR lower(coalesce({despesa_tipo}, '')) LIKE '%propaganda%'
+            GROUP BY 1, 2, 3, 4
+        """)
+    else:
+        con.execute("""
+            CREATE OR REPLACE TEMP VIEW publicidade_por_candidatura AS
+                 SELECT NULL::INTEGER despesa_ano, NULL::VARCHAR despesa_uf,
+                     NULL::VARCHAR despesa_eleicao, NULL::VARCHAR despesa_sq_candidato,
+                     NULL::DOUBLE publicidade_propaganda
+            WHERE false
+        """)
 
     con.execute(f"""
         CREATE OR REPLACE TEMP TABLE src_candidatura AS
@@ -158,11 +192,15 @@ def carregar(con, arquivos_candidatos, arquivos_votos):
             {_expr(cc, 'situacao_registro')} AS situacao_registro,
             upper({_expr(cc, 'resultado')}) AS situacao_final,
             try_cast(replace(replace({_expr(cc, 'patrimonio')}, '.', ''), ',', '.') AS DOUBLE) AS patrimonio,
+            pp.publicidade_propaganda,
             upper({_expr(cc, 'reeleicao')}) IN ('S', 'SIM', '1') AS reeleicao,
             {_expr(cc, 'ds_eleicao')} AS ds_eleicao,
             {_data(_expr(cc, 'dt_eleicao'))} AS dt_eleicao,
             CASE WHEN {cpf} IS NOT NULL THEN 'CPF' ELSE 'BIOGRAFICO' END AS metodo_identidade
-        FROM {cand}
+                FROM {cand}
+                LEFT JOIN publicidade_por_candidatura pp
+                      ON pp.despesa_ano = {ano} AND pp.despesa_uf = {uf}
+                     AND pp.despesa_eleicao = {eleicao} AND pp.despesa_sq_candidato = {sq}
         WHERE {ano} IS NOT NULL AND {nome} IS NOT NULL
     """)
 
@@ -220,7 +258,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos):
         SELECT id_candidatura, id_candidato, ano, cd_eleicao, turno, cd_cargo,
                numero_partido, sigla_partido, uf, cod_tse_municipio,
                numero_candidato, idade_eleicao, sequencial, escolaridade_candidatura,
-               situacao_registro, patrimonio, reeleicao
+               situacao_registro, patrimonio, publicidade_propaganda, reeleicao
         FROM src_candidatura
         QUALIFY row_number() OVER (PARTITION BY id_candidatura ORDER BY sq_candidato) = 1
     """)

@@ -37,6 +37,7 @@ TABELAS_TRAJETORIA = {
         escolaridade_candidatura VARCHAR,
         situacao_registro VARCHAR,
         patrimonio DOUBLE,
+        publicidade_propaganda DOUBLE,
         reeleicao BOOLEAN""",
     "resultado_candidatura": """
         id_candidatura VARCHAR PRIMARY KEY,

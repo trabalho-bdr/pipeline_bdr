@@ -65,14 +65,16 @@ def carregar_validar(escopo, pastas, registro=None, problemas_download=None):
     criar_tabelas_q3(con)
     candidatos = _arquivos(escopo, pastas, "consulta_cand")
     votos = _arquivos(escopo, pastas, "votacao_candidato_munzona")
+    despesas = _arquivos(escopo, pastas, "despesas_contratadas_candidatos")
     esperados = len(escopo["anos"]) * len(escopo["ufs"])
     arquivos = {
         "consulta_cand": len(candidatos),
         "votacao_candidato_munzona": len(votos),
+        "despesas_contratadas_candidatos": len(despesas),
         "esperados_por_recurso": esperados,
         "downloads": registro or [],
     }
-    carregar(con, candidatos, votos)
+    carregar(con, candidatos, votos, despesas)
     manifesto = validar(con, escopo, arquivos)
     manifesto["problemas"] = list(problemas_download or []) + manifesto["problemas"]
     manifesto["completo"] = not manifesto["problemas"]

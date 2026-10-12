@@ -321,7 +321,8 @@ with col_det:
                         )
                         st.plotly_chart(f, use_container_width=True)
                         st.dataframe(c[["id_candidato", "nome_civil", "ano", "turno", "cargo",
-                                        "partido", "municipio", "uf", "patrimonio", "votos", "resultado", "eleito"]],
+                                        "partido", "municipio", "uf", "patrimonio", "publicidade_propaganda",
+                                        "votos", "resultado", "eleito"]],
                                      use_container_width=True, hide_index=True)
                 else:
                     st.info("Busque pelo nome civil ou ID para ver cada candidatura na linha do tempo.")
