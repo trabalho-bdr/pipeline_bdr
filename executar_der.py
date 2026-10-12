@@ -10,11 +10,12 @@ from bdr.der.esquema import TABELAS_DER
 from bdr.der.q3_bruto import processar as processar_q3
 from bdr.der.q10_bruto import processar as processar_q10
 from bdr.der.transformacao import construir
+from bdr.trajetoria.config import ANOS_TRAJETORIA
 
 
 UFS_PADRAO = ("CE", "MA", "MS", "RJ", "RN", "RS")
 Q3_ANOS = (2022, 2024)
-Q10_ANOS = tuple(range(2002, 2025, 2))
+Q10_ANOS = tuple(ANOS_TRAJETORIA)
 SAIDA_PADRAO = Path("dados_bdr/saida/pipeline_bdr_der_completo.duckdb")
 
 
