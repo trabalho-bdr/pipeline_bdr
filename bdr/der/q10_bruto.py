@@ -113,11 +113,20 @@ def processar(ufs, anos, banco, trabalho):
                 cfg = RECURSOS[recurso]
                 nome = cfg["zip"].format(ano=ano)
                 zip_path = trabalho / "zips" / recurso / f"{nome}.zip"
-                baixar(f"{CDN_TSE}/{cfg['pasta']}/{nome}.zip", zip_path)
+                try:
+                    baixar(f"{CDN_TSE}/{cfg['pasta']}/{nome}.zip", zip_path)
+                except FileNotFoundError as exc:
+                    if cfg.get("opcional"):
+                        print(f"Q10 aviso: fonte opcional indisponível {recurso}/{ano}: {exc}", flush=True)
+                        continue
+                    raise
                 for uf in ufs:
                     arquivos, _ = extrair_por_uf(zip_path, trabalho / "raw", ano,
                                                  cfg["partes"], [uf])
                     if len(arquivos) != 1:
+                        if cfg.get("opcional"):
+                            print(f"Q10 aviso: sem despesas para {ano}/{uf}", flush=True)
+                            continue
                         raise ValueError(f"Arquivo oficial ausente: {recurso}/{ano}/{uf}")
                     arquivo = arquivos[0]
                     if recurso == "consulta_cand":

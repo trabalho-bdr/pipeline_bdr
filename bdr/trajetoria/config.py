@@ -20,6 +20,7 @@ RECURSOS = {
     "despesas_contratadas_candidatos": {
         "pasta": "despesas_contratadas_candidatos",
         "zip": "despesas_contratadas_candidatos_{ano}",
+        "opcional": True,
         "partes": {
             "despesas_contratadas_candidatos":
                 "despesas_contratadas_candidatos_{ano}_{uf}"

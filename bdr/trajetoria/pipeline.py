@@ -44,6 +44,16 @@ def baixar_fontes(escopo, pastas, apagar_zips=False):
                 print(f"   {len(gerados)} arquivos extraídos")
                 if apagar_zips:
                     zip_path.unlink(missing_ok=True)
+            except FileNotFoundError as exc:
+                if cfg.get("opcional"):
+                    registro.append({
+                        "ano": ano, "recurso": recurso, "status": "indisponivel",
+                        "extraidos": [], "itens_zip": 0,
+                    })
+                    print(f"   AVISO: fonte opcional indisponível ({exc})")
+                    continue
+                problemas.append(f"{ano}/{recurso}: {exc}")
+                print(f"   ERRO: {exc}")
             except Exception as exc:
                 problemas.append(f"{ano}/{recurso}: {exc}")
                 print(f"   ERRO: {exc}")
