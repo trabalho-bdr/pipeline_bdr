@@ -1,4 +1,44 @@
-"""Esquema final do DER para Q3 e Q10. A ordem das colunas é contratual."""
+"""Esquema final do DER para Q3, Q10 e Q9. A ordem das colunas é contratual."""
+
+TABELAS_Q9 = {
+    "Categoria_Despesa": (
+        "id_categoria_despesa VARCHAR PRIMARY KEY, "
+        "origem_despesa VARCHAR UNIQUE, "
+        "grupo_publicidade VARCHAR, "
+        "eh_publicidade BOOLEAN"
+    ),
+    "Despesa_Campanha": (
+        "id_despesa VARCHAR PRIMARY KEY, "
+        "id_candidatura VARCHAR NOT NULL, "
+        "id_categoria_despesa VARCHAR NOT NULL, "
+        "ano INTEGER, "
+        "uf VARCHAR, "
+        "cd_eleicao VARCHAR, "
+        "sq_candidato VARCHAR, "
+        "sequencial_despesa_tse VARCHAR, "
+        "turno SMALLINT, "
+        "data_despesa DATE, "
+        "descricao_despesa VARCHAR, "
+        "valor_contratado DECIMAL(18,2), "
+        "tipo_prestacao_contas VARCHAR, "
+        "FOREIGN KEY (id_candidatura) REFERENCES Candidatura(id_candidatura), "
+        "FOREIGN KEY (id_categoria_despesa) REFERENCES Categoria_Despesa(id_categoria_despesa)"
+    ),
+    "Despesa_Rejeitada": (
+        "id_rejeicao VARCHAR PRIMARY KEY, "
+        "motivo_rejeicao VARCHAR, "
+        "ano INTEGER, "
+        "uf VARCHAR, "
+        "cd_eleicao VARCHAR, "
+        "sq_candidato VARCHAR, "
+        "sequencial_despesa_tse VARCHAR, "
+        "turno SMALLINT, "
+        "data_despesa DATE, "
+        "origem_despesa VARCHAR, "
+        "descricao_despesa VARCHAR, "
+        "valor_contratado DECIMAL(18,2)"
+    ),
+}
 
 TABELAS_DER = {
     "Municipio": "id_municipio VARCHAR PRIMARY KEY, cod_tse VARCHAR UNIQUE, nome VARCHAR, uf VARCHAR, regiao VARCHAR",
@@ -11,6 +51,7 @@ TABELAS_DER = {
     "Resultado_Candidatura": "id_resultado VARCHAR PRIMARY KEY, id_candidatura VARCHAR NOT NULL, turno SMALLINT, resultado VARCHAR, votos BIGINT, FOREIGN KEY (id_candidatura) REFERENCES Candidatura(id_candidatura)",
     "Cargo": "id_cargo VARCHAR PRIMARY KEY, nome VARCHAR, id_candidatura VARCHAR NOT NULL, FOREIGN KEY (id_candidatura) REFERENCES Candidatura(id_candidatura)",
     "Votos_Partido_Municipio": "id_votos VARCHAR PRIMARY KEY, id_eleicao VARCHAR NOT NULL, id_partido VARCHAR NOT NULL, id_municipio VARCHAR NOT NULL, turno SMALLINT, votos_nominais BIGINT, votos_legenda BIGINT, FOREIGN KEY (id_eleicao) REFERENCES Eleicao(id_eleicao), FOREIGN KEY (id_partido) REFERENCES Partido(id_partido), FOREIGN KEY (id_municipio) REFERENCES Municipio(id_municipio)",
+    **TABELAS_Q9,
 }
 
 
