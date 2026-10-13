@@ -292,3 +292,30 @@ e referências temporais. A interface carrega os blocos nomeados desses arquivos
 não mantém SQL embutido no código do Streamlit. Na trajetória eleitoral, a pessoa
 é relacionada por `id_candidato` e o painel usa somente o nome civil, sem consultar
 ou exibir nome de urna.
+
+---
+
+## 13. Questão 9 — Publicidade e Propaganda Eleitoral
+
+A Questão 9 investiga em quais modalidades de publicidade os candidatos concentram seus gastos eleitorais.
+
+- **Escopo:** Anos 2018, 2020, 2022 e 2024 para CE, MA, MS, RJ, RN e RS.
+- **Novas tabelas no DER:** `Categoria_Despesa`, `Despesa_Campanha` e tabela de auditoria `Despesa_Rejeitada`.
+- **Classificação:** Mapeamento em grupos analíticos (`IMPRESSOS`, `DIGITAL`, `AUDIOVISUAL`, `SONORA`, `EVENTOS`, `OUTROS`, `NAO_PUBLICIDADE`) a partir de `DS_ORIGEM_DESPESA`.
+- **Consultas analíticas:** `bdr/consultas_q9.sql`.
+- **Documentação completa:** Consulte [README_Q9.md](file:///c:/Users/Nicole%20Ellen/Downloads/load_BDR-main/load_BDR-main/README_Q9.md) para especificações completas de regras de negócio, layouts e fontes de dados.
+
+### Comandos de Execução (Q9):
+
+- **Execução completa do DER (Q3 + Q10 + Q9):**
+  ```powershell
+  uv run python executar_der.py --executar-completo
+  ```
+- **Executar exclusivamente a Questão 9 (sobre banco DER existente):**
+  ```powershell
+  uv run python executar_der.py --somente-q9
+  ```
+- **Publicação incremental no MotherDuck (somente tabelas da Q9):**
+  ```powershell
+  uv run python executar_der.py --publicar-q9 --banco-remoto pipeline_bdr_der_completo
+  ```
