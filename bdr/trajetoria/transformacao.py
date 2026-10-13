@@ -140,7 +140,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         despesa_tipo = _expr(dc, 'tipo_despesa')
         despesa_valor = _valor_monetario(_expr(dc, 'valor_despesa'))
         con.execute(f"""
-            CREATE OR REPLACE TEMP VIEW despesas_normalizadas AS
+            CREATE OR REPLACE TEMP TABLE despesas_normalizadas AS
             SELECT {despesa_ano} AS despesa_ano, {despesa_uf} AS despesa_uf,
                    {despesa_eleicao} AS despesa_eleicao,
                    {despesa_sq} AS despesa_sq_candidato,
@@ -150,7 +150,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
             WHERE {despesa_tipo} IS NOT NULL AND {despesa_valor} IS NOT NULL
         """)
         con.execute("""
-            CREATE OR REPLACE TEMP VIEW gastos_por_candidatura AS
+            CREATE OR REPLACE TEMP TABLE gastos_por_candidatura AS
             SELECT despesa_ano, despesa_uf, despesa_eleicao, despesa_sq_candidato,
                    sum(valor) AS gastos_campanha_total
             FROM despesas_normalizadas
@@ -158,14 +158,14 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         """)
     else:
         con.execute("""
-            CREATE OR REPLACE TEMP VIEW despesas_normalizadas AS
+            CREATE OR REPLACE TEMP TABLE despesas_normalizadas AS
             SELECT NULL::INTEGER despesa_ano, NULL::VARCHAR despesa_uf,
                    NULL::VARCHAR despesa_eleicao, NULL::VARCHAR despesa_sq_candidato,
                    NULL::VARCHAR categoria, NULL::DOUBLE valor
             WHERE false
         """)
         con.execute("""
-            CREATE OR REPLACE TEMP VIEW gastos_por_candidatura AS
+            CREATE OR REPLACE TEMP TABLE gastos_por_candidatura AS
                  SELECT NULL::INTEGER despesa_ano, NULL::VARCHAR despesa_uf,
                      NULL::VARCHAR despesa_eleicao, NULL::VARCHAR despesa_sq_candidato,
                      NULL::DOUBLE gastos_campanha_total
@@ -214,7 +214,8 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
                 FROM {cand}
                 LEFT JOIN gastos_por_candidatura pp
                       ON pp.despesa_ano = {ano} AND pp.despesa_uf = {uf}
-                     AND pp.despesa_eleicao = {eleicao} AND pp.despesa_sq_candidato = {sq}
+                 AND pp.despesa_sq_candidato = {sq}
+                 AND (pp.despesa_eleicao = 'NA' OR pp.despesa_eleicao = {eleicao})
         WHERE {ano} IS NOT NULL AND {nome} IS NOT NULL
     """)
 
@@ -284,8 +285,9 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
                c.id_candidatura, d.categoria, sum(d.valor)
         FROM despesas_normalizadas d
         JOIN candidatura c
-          ON c.ano = d.despesa_ano AND c.cd_eleicao = d.despesa_eleicao
-         AND c.uf = d.despesa_uf AND c.sequencial = d.despesa_sq_candidato
+                    ON c.ano = d.despesa_ano AND c.uf = d.despesa_uf
+                 AND trim(c.sequencial) = trim(d.despesa_sq_candidato)
+                 AND (d.despesa_eleicao = 'NA' OR c.cd_eleicao = d.despesa_eleicao)
         GROUP BY c.id_candidatura, d.despesa_ano, d.despesa_eleicao,
                  d.despesa_uf, d.despesa_sq_candidato, d.categoria
     """)

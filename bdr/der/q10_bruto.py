@@ -58,13 +58,20 @@ def _despesas_arquivo(con, caminho):
                 return f"nullif(trim({_ident(cols[nome])}), '')"
         return padrao
 
+    ano = campo('ANO_ELEICAO', 'ANO')
+    uf = campo('SG_UF', 'SIGLA_UF')
+    eleicao = campo('CD_ELEICAO', 'CODIGO_ELEICAO')
+    sequencial = campo('SQ_CANDIDATO', 'SEQUENCIAL_CANDIDATO')
+    categoria = campo('DS_TIPO_DESPESA', 'DESCRICAO_TIPO_DESPESA', 'DS_DESPESA')
+    valor = campo('VR_DESPESA_CONTRATADA', 'VALOR_DESPESA_CONTRATADA')
     con.execute(f"""INSERT INTO stg_despesas
-        SELECT {campo('ANO_ELEICAO', 'ANO')}, {campo('SG_UF', 'SIGLA_UF')},
-               {campo('CD_ELEICAO', 'CODIGO_ELEICAO')},
-               {campo('SQ_CANDIDATO', 'SEQUENCIAL_CANDIDATO')},
-               {campo('DS_TIPO_DESPESA', 'DESCRICAO_TIPO_DESPESA', 'DS_DESPESA')},
-               {campo('VR_DESPESA_CONTRATADA', 'VALOR_DESPESA_CONTRATADA')}
+        SELECT {ano}, {uf}, {eleicao}, {sequencial}, {categoria},
+               replace(printf('%.2f', sum(
+                   try_cast(replace(replace({valor}, '.', ''), ',', '.') AS DOUBLE)
+               )), '.', ',')
         FROM {fonte}
+        WHERE {sequencial} IS NOT NULL AND {categoria} IS NOT NULL
+        GROUP BY 1, 2, 3, 4, 5
     """)
 
 
@@ -111,6 +118,9 @@ def processar(ufs, anos, banco, trabalho):
             for recurso in ("consulta_cand", "votacao_candidato_munzona",
                             "despesas_contratadas_candidatos"):
                 cfg = RECURSOS[recurso]
+                if cfg.get("anos_disponiveis") and ano not in cfg["anos_disponiveis"]:
+                    print(f"Q10 aviso: {recurso} não publicado pelo TSE em {ano}", flush=True)
+                    continue
                 nome = cfg["zip"].format(ano=ano)
                 zip_path = trabalho / "zips" / recurso / f"{nome}.zip"
                 try:
@@ -148,7 +158,9 @@ def processar(ufs, anos, banco, trabalho):
             FROM stg_consulta_cand GROUP BY 1,2,3,4""")
         criar_dimensoes_operacionais(con)
         _fonte_candidatos(con)
+        print("Q10 transformando candidaturas, votos e despesas...", flush=True)
         carregar(con, "fonte_candidatos", "stg_votos", "stg_despesas")
+        print("Q10 transformação concluída", flush=True)
         con.execute("DROP TABLE stg_votos")
         con.execute("DROP TABLE stg_despesas")
         con.execute("DROP TABLE stg_consulta_cand")

@@ -28,6 +28,13 @@ def baixar_fontes(escopo, pastas, apagar_zips=False):
     registro, problemas = [], []
     for ano in escopo["anos"]:
         for recurso, cfg in RECURSOS.items():
+            if cfg.get("anos_disponiveis") and ano not in cfg["anos_disponiveis"]:
+                registro.append({
+                    "ano": ano, "recurso": recurso, "status": "indisponivel",
+                    "extraidos": [], "itens_zip": 0,
+                })
+                print(f"   AVISO: {recurso} não publicado pelo TSE em {ano}")
+                continue
             nome = cfg["zip"].format(ano=ano)
             url = f"{CDN_TSE}/{cfg['pasta']}/{nome}.zip"
             zip_path = pastas.zips / recurso / f"{nome}.zip"
