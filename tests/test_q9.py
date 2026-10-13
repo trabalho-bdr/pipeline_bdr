@@ -284,6 +284,33 @@ class Questao9Test(unittest.TestCase):
         finally:
             con.close()
 
+    def test_conversao_valores_monetarios(self):
+        """Testa conversão de valores monetários no padrão brasileiro para DECIMAL(18,2)."""
+        con = duckdb.connect()
+        # Testa que strings vazias e nulos resultam em NULL (não 0.00)
+        query = """
+            SELECT
+                try_cast(replace(replace('1.234.567,89', '.', ''), ',', '.') AS DECIMAL(18,2)) AS v1,
+                try_cast(replace(replace('500,00', '.', ''), ',', '.') AS DECIMAL(18,2)) AS v2,
+                try_cast(replace(replace('-150,50', '.', ''), ',', '.') AS DECIMAL(18,2)) AS v3,
+                try_cast(replace(replace(nullif(trim(''), ''), '.', ''), ',', '.') AS DECIMAL(18,2)) AS v4,
+                try_cast(replace(replace(nullif(trim(NULL), ''), '.', ''), ',', '.') AS DECIMAL(18,2)) AS v5
+        """
+        v1, v2, v3, v4, v5 = con.execute(query).fetchone()
+        self.assertEqual(float(v1), 1234567.89)
+        self.assertEqual(float(v2), 500.00)
+        self.assertEqual(float(v3), -150.50)
+        self.assertIsNone(v4)
+        self.assertIsNone(v5)
+
+    def test_validacao_publicacao_incremental(self):
+        """Testa regras de validação da publicação incremental de Q9."""
+        from bdr.der.q9_motherduck import publicar_q9
+
+        # Arquivo inexistente deve falhar
+        with self.assertRaises(FileNotFoundError):
+            publicar_q9(self.raiz / "arquivo_fantasma.duckdb")
+
 
 if __name__ == "__main__":
     unittest.main()
