@@ -87,7 +87,7 @@ def construir(q3, q10, destino, consulta_cand=()):
                WHERE (p.ano=2022 AND p.cd_eleicao='544' AND p.turno=1)
                   OR (p.ano=2024 AND p.cd_eleicao='619' AND p.turno=1)''',
                 '''INSERT INTO "Candidatura" SELECT c.id_candidatura,e.id_eleicao,c.id_candidato,m.id_municipio,p.id_partido,
-                    c.uf,cand.nome_urna,c.numero_candidato,c.idade_eleicao,c.situacao_registro,c.sequencial,c.escolaridade_candidatura,c.patrimonio,c.publicidade_propaganda
+                    c.uf,cand.nome_urna,c.numero_candidato,c.idade_eleicao,c.situacao_registro,c.sequencial,c.escolaridade_candidatura,c.patrimonio,c.gastos_campanha_total
                FROM q10.main.candidatura c JOIN eleicao_chave e ON e.ano=c.ano AND e.cd_eleicao=c.cd_eleicao
                  AND e.turno=c.turno AND e.cd_cargo=c.cd_cargo
                     LEFT JOIN q10.main.candidato cand ON cand.id_candidato=c.id_candidato
@@ -96,6 +96,9 @@ def construir(q3, q10, destino, consulta_cand=()):
             '''INSERT INTO "Resultado_Candidatura" SELECT md5('RESULTADO|'||r.id_candidatura),r.id_candidatura,
                c.turno,r.situacao_final,r.votos FROM q10.main.resultado_candidatura r
                JOIN q10.main.candidatura c USING(id_candidatura)''',
+                '''INSERT INTO "Despesa_Candidatura"
+                    SELECT id_despesa,id_candidatura,categoria,valor
+                    FROM q10.main.despesa_candidatura''',
             '''INSERT INTO "Cargo" SELECT md5('CARGO|'||c.id_candidatura),ca.nome,c.id_candidatura
                FROM q10.main.candidatura c JOIN q10.main.cargo ca USING(cd_cargo)''',
             '''INSERT INTO "Votos_Partido_Municipio" SELECT md5('VOTOS|'||e.id_eleicao||'|'||p.id_partido||'|'||m.id_municipio),

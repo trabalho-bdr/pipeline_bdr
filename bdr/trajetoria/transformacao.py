@@ -140,21 +140,35 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         despesa_tipo = _expr(dc, 'tipo_despesa')
         despesa_valor = _valor_monetario(_expr(dc, 'valor_despesa'))
         con.execute(f"""
-            CREATE OR REPLACE TEMP VIEW publicidade_por_candidatura AS
-                 SELECT {despesa_ano} AS despesa_ano, {despesa_uf} AS despesa_uf,
-                     {despesa_eleicao} AS despesa_eleicao, {despesa_sq} AS despesa_sq_candidato,
-                   sum({despesa_valor}) AS publicidade_propaganda
+            CREATE OR REPLACE TEMP VIEW despesas_normalizadas AS
+            SELECT {despesa_ano} AS despesa_ano, {despesa_uf} AS despesa_uf,
+                   {despesa_eleicao} AS despesa_eleicao,
+                   {despesa_sq} AS despesa_sq_candidato,
+                   nullif(trim({despesa_tipo}), '') AS categoria,
+                   {despesa_valor} AS valor
             FROM {despesas}
-            WHERE lower(coalesce({despesa_tipo}, '')) LIKE '%publicidade%'
-               OR lower(coalesce({despesa_tipo}, '')) LIKE '%propaganda%'
+            WHERE {despesa_tipo} IS NOT NULL AND {despesa_valor} IS NOT NULL
+        """)
+        con.execute("""
+            CREATE OR REPLACE TEMP VIEW gastos_por_candidatura AS
+            SELECT despesa_ano, despesa_uf, despesa_eleicao, despesa_sq_candidato,
+                   sum(valor) AS gastos_campanha_total
+            FROM despesas_normalizadas
             GROUP BY 1, 2, 3, 4
         """)
     else:
         con.execute("""
-            CREATE OR REPLACE TEMP VIEW publicidade_por_candidatura AS
+            CREATE OR REPLACE TEMP VIEW despesas_normalizadas AS
+            SELECT NULL::INTEGER despesa_ano, NULL::VARCHAR despesa_uf,
+                   NULL::VARCHAR despesa_eleicao, NULL::VARCHAR despesa_sq_candidato,
+                   NULL::VARCHAR categoria, NULL::DOUBLE valor
+            WHERE false
+        """)
+        con.execute("""
+            CREATE OR REPLACE TEMP VIEW gastos_por_candidatura AS
                  SELECT NULL::INTEGER despesa_ano, NULL::VARCHAR despesa_uf,
                      NULL::VARCHAR despesa_eleicao, NULL::VARCHAR despesa_sq_candidato,
-                     NULL::DOUBLE publicidade_propaganda
+                     NULL::DOUBLE gastos_campanha_total
             WHERE false
         """)
 
@@ -192,13 +206,13 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
             {_expr(cc, 'situacao_registro')} AS situacao_registro,
             upper({_expr(cc, 'resultado')}) AS situacao_final,
             try_cast(replace(replace({_expr(cc, 'patrimonio')}, '.', ''), ',', '.') AS DOUBLE) AS patrimonio,
-            pp.publicidade_propaganda,
+            pp.gastos_campanha_total,
             upper({_expr(cc, 'reeleicao')}) IN ('S', 'SIM', '1') AS reeleicao,
             {_expr(cc, 'ds_eleicao')} AS ds_eleicao,
             {_data(_expr(cc, 'dt_eleicao'))} AS dt_eleicao,
             CASE WHEN {cpf} IS NOT NULL THEN 'CPF' ELSE 'BIOGRAFICO' END AS metodo_identidade
                 FROM {cand}
-                LEFT JOIN publicidade_por_candidatura pp
+                LEFT JOIN gastos_por_candidatura pp
                       ON pp.despesa_ano = {ano} AND pp.despesa_uf = {uf}
                      AND pp.despesa_eleicao = {eleicao} AND pp.despesa_sq_candidato = {sq}
         WHERE {ano} IS NOT NULL AND {nome} IS NOT NULL
@@ -258,9 +272,22 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         SELECT id_candidatura, id_candidato, ano, cd_eleicao, turno, cd_cargo,
                numero_partido, sigla_partido, uf, cod_tse_municipio,
                numero_candidato, idade_eleicao, sequencial, escolaridade_candidatura,
-               situacao_registro, patrimonio, publicidade_propaganda, reeleicao
+               situacao_registro, patrimonio, gastos_campanha_total, reeleicao
         FROM src_candidatura
         QUALIFY row_number() OVER (PARTITION BY id_candidatura ORDER BY sq_candidato) = 1
+    """)
+    con.execute("""
+        INSERT INTO despesa_candidatura
+        SELECT md5('DESPESA|' || cast(d.despesa_ano AS VARCHAR) || '|' ||
+                   d.despesa_eleicao || '|' || d.despesa_uf || '|' ||
+                   d.despesa_sq_candidato || '|' || d.categoria),
+               c.id_candidatura, d.categoria, sum(d.valor)
+        FROM despesas_normalizadas d
+        JOIN candidatura c
+          ON c.ano = d.despesa_ano AND c.cd_eleicao = d.despesa_eleicao
+         AND c.uf = d.despesa_uf AND c.sequencial = d.despesa_sq_candidato
+        GROUP BY c.id_candidatura, d.despesa_ano, d.despesa_eleicao,
+                 d.despesa_uf, d.despesa_sq_candidato, d.categoria
     """)
 
     # Complementa dimensões compartilhadas quando elas já existem no banco.

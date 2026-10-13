@@ -321,7 +321,7 @@ with col_det:
                         )
                         st.plotly_chart(f, use_container_width=True)
                         st.dataframe(c[["id_candidato", "nome_civil", "ano", "turno", "cargo",
-                                        "partido", "municipio", "uf", "patrimonio", "publicidade_propaganda",
+                                        "partido", "municipio", "uf", "patrimonio", "gastos_campanha_total",
                                         "votos", "resultado", "eleito"]],
                                      use_container_width=True, hide_index=True)
                 else:

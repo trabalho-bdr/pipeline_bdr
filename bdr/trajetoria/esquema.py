@@ -37,8 +37,14 @@ TABELAS_TRAJETORIA = {
         escolaridade_candidatura VARCHAR,
         situacao_registro VARCHAR,
         patrimonio DOUBLE,
-        publicidade_propaganda DOUBLE,
+        gastos_campanha_total DOUBLE,
         reeleicao BOOLEAN""",
+    "despesa_candidatura": """
+        id_despesa VARCHAR PRIMARY KEY,
+        id_candidatura VARCHAR NOT NULL,
+        categoria VARCHAR NOT NULL,
+        valor DOUBLE,
+        FOREIGN KEY (id_candidatura) REFERENCES candidatura(id_candidatura)""",
     "resultado_candidatura": """
         id_candidatura VARCHAR PRIMARY KEY,
         votos BIGINT,
