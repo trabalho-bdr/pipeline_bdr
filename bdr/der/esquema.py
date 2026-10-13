@@ -55,6 +55,28 @@ TABELAS_DER = {
 }
 
 
+VIEWS_Q9 = {
+    "vw_publicidade_candidatura": (
+        """SELECT
+            d.id_candidatura,
+            sum(d.valor_contratado)::DOUBLE AS total_publicidade,
+            count(d.id_despesa) AS quantidade_despesas_publicidade
+        FROM {prefixo}"Despesa_Campanha" d
+        JOIN {prefixo}"Categoria_Despesa" cat ON d.id_categoria_despesa = cat.id_categoria_despesa
+        WHERE cat.eh_publicidade = true
+        GROUP BY d.id_candidatura"""
+    )
+}
+
+
 def criar(con):
     for nome, definicao in TABELAS_DER.items():
         con.execute(f'CREATE TABLE "{nome}" ({definicao})')
+
+
+def criar_views_q9(con, prefixo=""):
+    """Cria views específicas da Q9 (com prefixo opcional para schema/database)."""
+    p = f"{prefixo}." if prefixo else ""
+    for nome, consulta in VIEWS_Q9.items():
+        corpo = consulta.format(prefixo=p)
+        con.execute(f'CREATE OR REPLACE VIEW {p}"{nome}" AS {corpo}')
