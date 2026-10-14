@@ -40,6 +40,10 @@ def _conexao():
                 if os.environ.get("MOTHERDUCK_TOKEN"):
                     os.environ["motherduck_token"] = os.environ["MOTHERDUCK_TOKEN"]
                 _con = duckdb.connect(BANCO)
+                try:
+                    _con.execute("SET search_path = 'der_bdr,main'")
+                except Exception:
+                    pass
             else:
                 _con = duckdb.connect(BANCO, read_only=True)
         return _con
@@ -49,6 +53,9 @@ def _consultar(sql, params=()):
     try:
         cur = _conexao().cursor()
         try:
+            if BANCO.startswith("md:"):
+                # Os cursores DuckDB não herdam o search_path da conexão.
+                cur.execute("SET search_path = 'der_bdr,main'")
             cur.execute(sql, list(params))
             colunas = [d[0] for d in cur.description]
             return [dict(zip(colunas, r)) for r in cur.fetchall()]
@@ -65,10 +72,23 @@ def _limpo(v):
     return float(v) if hasattr(v, "as_tuple") else v
 
 
+_col_ano = None
+
+def _obter_coluna_ano():
+    global _col_ano
+    if _col_ano is None:
+        try:
+            cols = [c[0].lower() for c in _conexao().execute('DESCRIBE "Participacao_Eleitoral"').fetchall()]
+            _col_ano = "ano" if "ano" in cols else "ano_participacao"
+        except Exception:
+            _col_ano = "ano"
+    return _col_ano
+
+
 @app.get("/api/anos")
 def anos():
-    r = _consultar('SELECT DISTINCT ano_participacao AS ano FROM "Participacao_Eleitoral" '
-                   "WHERE ano_participacao IS NOT NULL ORDER BY 1")
+    col = _obter_coluna_ano()
+    r = _consultar(f'SELECT DISTINCT {col} AS ano FROM "Participacao_Eleitoral" WHERE {col} IS NOT NULL ORDER BY 1')
     return {"anos": [x["ano"] for x in r]}
 
 
@@ -80,6 +100,9 @@ def q3(uf: str, ano: int):
         raise HTTPException(422, "UF fora do recorte")
     if ano not in set(anos()["anos"]):
         raise HTTPException(422, "Ano sem dados de participação")
-    linhas = _consultar(consulta("q3_municipios"), [ano, uf])
+    sql = consulta("q3_municipios")
+    if _obter_coluna_ano() == "ano":
+        sql = sql.replace("p.ano_participacao", "p.ano")
+    linhas = _consultar(sql, [ano, uf])
     saida = {str(r["id_municipio"]).zfill(7): {k: _limpo(v) for k, v in r.items()} for r in linhas}
     return {"uf": uf, "ano": ano, "municipios": saida}
