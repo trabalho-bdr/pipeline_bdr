@@ -3,19 +3,35 @@ import { select } from "d3-selection";
 import "d3-transition";
 import { zoom, zoomIdentity, ZoomBehavior } from "d3-zoom";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { CORES_UF } from "./coresEleitorais";
 
 export type Feat = { type: "Feature"; properties: { codarea: string }; geometry: any };
 type Props = {
   ufs: Feat[]; muns: Feat[]; uf: string | null; siglas: Record<string, string>; cobertos: Set<string>;
-  mun: string | null; cor: (id: string) => string; nomes: Record<string, string>;
+  mun: string | null; cor: (id: string) => string; corUf?: (sigla: string) => string | undefined; nomes: Record<string, string>;
+  descricaoUf?: (sigla: string) => string; descricaoMun?: (id: string) => string;
+  municipiosBusca: { id: string; nome: string; uf: string }[];
   onUf: (sigla: string) => void; onMun: (id: string) => void;
+  onMunicipioBusca: (sigla: string, id: string) => void;
 };
+
+const normalizar = (valor: string) => valor.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
 export function Mapa(p: Props) {
   const svg = useRef<SVGSVGElement>(null), g = useRef<SVGGElement>(null);
   const zb = useRef<ZoomBehavior<SVGSVGElement, unknown>>();
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [dica, setDica] = useState("");
+  const [busca, setBusca] = useState("");
+  const indiceBusca = useMemo(() => p.municipiosBusca.map((item) => ({ ...item, chave: normalizar(`${item.nome} ${item.uf}`) })), [p.municipiosBusca]);
+  const termo = normalizar(busca.trim());
+  const resultados = termo ? indiceBusca.filter((item) => item.chave.includes(termo) || item.id.includes(termo))
+    .sort((a, b) => Number(b.chave.startsWith(termo)) - Number(a.chave.startsWith(termo)) || a.nome.localeCompare(b.nome, "pt-BR"))
+    .slice(0, 8) : [];
+  const escolherResultado = (item: { id: string; uf: string }) => {
+    p.onMunicipioBusca(item.uf, item.id);
+    setBusca("");
+  };
 
   useEffect(() => {  // redimensiona com o contêiner (a área do painel não entra no mapa)
     const ro = new ResizeObserver((e) => {
@@ -45,7 +61,8 @@ export function Mapa(p: Props) {
   };
   const enquadrar = () => {
     let t = zoomIdentity;
-    const f = p.uf && p.ufs.find((x) => p.siglas[x.properties.codarea] === p.uf);
+    const f = (p.mun && p.muns.find((x) => x.properties.codarea === p.mun))
+      || (p.uf && p.ufs.find((x) => p.siglas[x.properties.codarea] === p.uf));
     if (f) {
       const [[x0, y0], [x1, y1]] = path.bounds(f as any);
       const k = Math.min(60, 0.9 / Math.max((x1 - x0) / size.w, (y1 - y0) / size.h));
@@ -53,30 +70,46 @@ export function Mapa(p: Props) {
     }
     mover(t);
   };
-  useEffect(enquadrar, [p.uf, path]);
+  useEffect(enquadrar, [p.uf, p.mun, p.muns.length, path]);
 
   const iSel = p.mun ? p.muns.findIndex((f) => f.properties.codarea === p.mun) : -1;
   const comMun = p.muns.length > 0;
   return (
     <div class="mapa">
-      <svg ref={svg} role="img" aria-label="Mapa interativo: Brasil, estados e municípios">
+      <div class="mapa-busca">
+        <label for="busca-municipio-mapa">Buscar município</label>
+        <div class="mapa-busca-campo"><span aria-hidden="true">⌕</span><input id="busca-municipio-mapa" type="search" value={busca}
+          placeholder="Nome ou código IBGE" autoComplete="off"
+          onInput={(e) => setBusca((e.target as HTMLInputElement).value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && resultados[0]) escolherResultado(resultados[0]); if (e.key === "Escape") setBusca(""); }} /></div>
+        {termo && <div class="mapa-busca-resultados" role="status">
+          {resultados.length ? resultados.map((item) => <button key={`${item.uf}-${item.id}`} onClick={() => escolherResultado(item)}>
+            <span><span class="municipio-resultado-nome">{item.nome}</span><small class="uf-badge" style={{ color: CORES_UF[item.uf], borderColor: CORES_UF[item.uf] }}>{item.uf}</small></span><span aria-hidden="true">↗</span></button>)
+            : <p>Nenhum município encontrado nos estados disponíveis.</p>}
+        </div>}
+      </div>
+      <svg ref={svg} role="group" aria-label="Mapa interativo: Brasil, estados e municípios">
         <g ref={g}>
           {p.ufs.map((f, i) => {
             const s = p.siglas[f.properties.codarea], cob = p.cobertos.has(s);
             const oculto = comMun && s === p.uf;
-            return <path key={f.properties.codarea} d={dUf[i]} class={`uf ${cob ? "cob" : "fora"}${oculto ? " oculto" : ""}`}
-              onClick={() => cob && p.onUf(s)} onMouseEnter={() => setDica(`${s}${cob ? "" : " — fora do recorte"}`)}
+            return <path key={f.properties.codarea} d={dUf[i]} class={`uf ${cob ? "cob" : "fora"}${oculto ? " oculto" : ""}`} style={cob && !p.uf ? { fill: p.corUf?.(s) } : undefined}
+              onClick={() => cob && p.onUf(s)} onKeyDown={(e) => { if (cob && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); p.onUf(s); } }}
+              tabIndex={cob ? 0 : -1} role={cob ? "button" : undefined} aria-label={`Selecionar estado ${s}${p.descricaoUf ? `: ${p.descricaoUf(s)}` : ""}`}
+              onMouseEnter={() => setDica(p.descricaoUf ? p.descricaoUf(s) : `${s}${cob ? "" : " — sem dados disponíveis"}`)}
               onMouseLeave={() => setDica("")} />;
           })}
           {p.muns.map((f, i) => (
             <path key={f.properties.codarea} d={dMun[i]} class="mun" style={{ fill: p.cor(f.properties.codarea) }}
-              onClick={() => p.onMun(f.properties.codarea)}
-              onMouseEnter={() => setDica(`${p.nomes[f.properties.codarea] ?? f.properties.codarea} — ${p.uf}`)}
+              onClick={() => p.onMun(f.properties.codarea)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); p.onMun(f.properties.codarea); } }}
+              tabIndex={0} role="button" aria-label={`Selecionar município ${p.nomes[f.properties.codarea] ?? f.properties.codarea}`}
+              onMouseEnter={() => setDica(p.descricaoMun ? p.descricaoMun(f.properties.codarea) : `${p.nomes[f.properties.codarea] ?? f.properties.codarea} — ${p.uf}`)}
               onMouseLeave={() => setDica("")} />
           ))}
           {iSel >= 0 && <path d={dMun[iSel]} class="mun sel" pointer-events="none" />}
         </g>
       </svg>
+      {!p.uf && <div class="mapa-hint">Busque um município ou selecione um estado</div>}
       <div class="dica" aria-live="polite">{dica}</div>
       <div class="zoomctl">
         <button aria-label="Aproximar" onClick={() => select(svg.current!).transition().call(zb.current!.scaleBy as any, 1.6)}>+</button>
