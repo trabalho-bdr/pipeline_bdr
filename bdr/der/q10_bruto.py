@@ -1,6 +1,9 @@
 """Carga operacional Q10 a partir dos ZIPs oficiais, um ano/UF de cada vez."""
 
 from pathlib import Path
+import json
+import urllib.parse
+import urllib.request
 
 import duckdb
 
@@ -10,6 +13,40 @@ from bdr.extracao import extrair_por_uf
 from bdr.leitura import ALIASES as ALIASES_LEITURA, carregar_arquivo
 from bdr.trajetoria.config import CDN_TSE, RECURSOS
 from bdr.trajetoria.transformacao import carregar
+
+
+def _recurso_catalogo(ano):
+    """Obtém o download oficial de prestação de contas no catálogo do TSE."""
+    slug = f"prestacao-de-contas-eleitorais-{ano}"
+    url = "https://dadosabertos.tse.jus.br/api/3/action/package_show?" + urllib.parse.urlencode({"id": slug})
+    try:
+        with urllib.request.urlopen(url, timeout=60) as resposta:
+            pacote = json.load(resposta)
+    except Exception:
+        return None
+    for recurso in pacote.get("result", {}).get("resources", []):
+        nome = (recurso.get("name") or "").lower()
+        descricao = (recurso.get("description") or "").lower()
+        if "prestação de contas de candidatos" in nome or "prestação de contas de candidatos" in descricao:
+            return recurso.get("url")
+    return None
+
+
+def _baixar_recurso(ano, recurso, zip_path):
+    cfg = RECURSOS[recurso]
+    modelos = cfg.get("urls") or [f"{{cdn}}/{cfg['pasta']}/{cfg['zip'].format(ano=ano)}.zip"]
+    if recurso == "despesas_contratadas_candidatos":
+        catalogo = _recurso_catalogo(ano)
+        if catalogo:
+            modelos = [catalogo] + modelos
+    ultimo = None
+    for modelo in modelos:
+        url = modelo.format(cdn=CDN_TSE, ano=ano)
+        try:
+            return baixar(url, zip_path)
+        except FileNotFoundError as exc:
+            ultimo = exc
+    raise ultimo or FileNotFoundError(str(zip_path))
 
 
 def _lit(valor):
@@ -58,7 +95,7 @@ def _despesas_arquivo(con, caminho):
                 return f"nullif(trim({_ident(cols[nome])}), '')"
         return padrao
 
-    ano = campo('ANO_ELEICAO', 'ANO')
+    ano = campo('ANO_ELEICAO', 'AA_ELEICAO', 'ANO')
     uf = campo('SG_UF', 'SIGLA_UF')
     eleicao = campo('CD_ELEICAO', 'CODIGO_ELEICAO')
     sequencial = campo('SQ_CANDIDATO', 'SEQUENCIAL_CANDIDATO')
@@ -67,7 +104,9 @@ def _despesas_arquivo(con, caminho):
     con.execute(f"""INSERT INTO stg_despesas
         SELECT {ano}, {uf}, {eleicao}, {sequencial}, {categoria},
                replace(printf('%.2f', sum(
-                   try_cast(replace(replace({valor}, '.', ''), ',', '.') AS DOUBLE)
+                   try_cast(CASE WHEN instr({valor}, ',') > 0
+                                 THEN replace(replace({valor}, '.', ''), ',', '.')
+                                 ELSE {valor} END AS DOUBLE)
                )), '.', ',')
         FROM {fonte}
         WHERE {sequencial} IS NOT NULL AND {categoria} IS NOT NULL
@@ -118,16 +157,13 @@ def processar(ufs, anos, banco, trabalho):
             for recurso in ("consulta_cand", "votacao_candidato_munzona",
                             "despesas_contratadas_candidatos"):
                 cfg = RECURSOS[recurso]
-                if cfg.get("anos_disponiveis") and ano not in cfg["anos_disponiveis"]:
-                    print(f"Q10 aviso: {recurso} não publicado pelo TSE em {ano}", flush=True)
-                    continue
                 nome = cfg["zip"].format(ano=ano)
                 zip_path = trabalho / "zips" / recurso / f"{nome}.zip"
                 try:
-                    baixar(f"{CDN_TSE}/{cfg['pasta']}/{nome}.zip", zip_path)
+                    _baixar_recurso(ano, recurso, zip_path)
                 except FileNotFoundError as exc:
                     if cfg.get("opcional"):
-                        print(f"Q10 aviso: fonte opcional indisponível {recurso}/{ano}: {exc}", flush=True)
+                        print(f"Q10 aviso: prestação de contas indisponível em {ano}: {exc}", flush=True)
                         continue
                     raise
                 for uf in ufs:

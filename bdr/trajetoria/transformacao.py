@@ -21,7 +21,7 @@ def _cpf_valido(valor):
 
 
 ALIASES = {
-    "ano": ["ANO_ELEICAO", "ANO"],
+    "ano": ["ANO_ELEICAO", "AA_ELEICAO", "ANO"],
     "turno": ["NR_TURNO", "NUM_TURNO"],
     "uf": ["SG_UF", "SIGLA_UF"],
     "cd_eleicao": ["CD_ELEICAO", "CODIGO_ELEICAO"],
@@ -93,7 +93,11 @@ def _data(expr):
 
 
 def _valor_monetario(expr):
-    return f"try_cast(replace(replace({expr}, '.', ''), ',', '.') AS DOUBLE)"
+    return (
+        f"try_cast(CASE WHEN instr({expr}, ',') > 0 "
+        f"THEN replace(replace({expr}, '.', ''), ',', '.') "
+        f"ELSE {expr} END AS DOUBLE)"
+    )
 
 
 def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):

@@ -21,6 +21,12 @@ SAIDA_PADRAO = Path("dados_bdr/saida/pipeline_bdr_der_completo.duckdb")
 
 def executar_completo(ufs, q3_anos, q10_anos, saida, planilhas_idhm, csv_idhm):
     """Baixa/processa fontes brutas e monta o DER sem ler bancos DER antigos."""
+    anos_invalidos = sorted(set(q10_anos) - set(Q10_ANOS))
+    if anos_invalidos:
+        raise ValueError(
+            "Q10 aceita somente anos eleitorais de 2002 a 2024; inválidos: "
+            + ", ".join(map(str, anos_invalidos))
+        )
     if saida.resolve() != SAIDA_PADRAO.resolve():
         raise ValueError(f"A saída desta carga deve ser {SAIDA_PADRAO}")
     base = Path("dados_bdr/trabalho_der")

@@ -78,8 +78,7 @@ def extrair_por_uf(zip_path, raiz, ano, partes, siglas):
                                            saida, 1 << 20)
                 gerados.append(destino)
 
-        # Plano B: UF sem arquivo próprio no ZIP (ex.: '_BR' do presidente em 2022) -> procura as
-        # linhas dela no consolidado '_BRASIL' do mesmo arquivo.
+        # Plano B: UF sem arquivo próprio no ZIP -> filtra um consolidado nacional.
         faltantes = {}
         for parte in partes:
             for uf in siglas:
@@ -87,8 +86,9 @@ def extrair_por_uf(zip_path, raiz, ano, partes, siglas):
                 if not (destino.exists() and destino.stat().st_size > 0):
                     faltantes.setdefault(parte, {})[uf] = destino
         for parte, destinos in faltantes.items():
+            prefixo = partes[parte].format(ano=ano, uf="").rstrip("_")
             consolidado = re.compile(
-                rf"^{re.escape(partes[parte].format(ano=ano, uf='BRASIL'))}\.(csv|txt)$", re.IGNORECASE)
+                rf"^{re.escape(prefixo)}_(BRASIL|BR)\.(csv|txt)$", re.IGNORECASE)
             info = next((i for i in z.infolist()
                          if not i.is_dir() and consolidado.match(Path(i.filename).name)), None)
             if info is not None:

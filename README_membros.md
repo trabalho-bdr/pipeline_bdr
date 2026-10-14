@@ -96,4 +96,7 @@ Para a Questão 3, a pipeline baixa **estritamente**:
 - **IBGE:** Localidades, População (Censo 2022) e PIB Municipal (2022).
 - **IDHM:** lido do arquivo local documentado `dados_bdr/fontes/idhm.csv` (referência 2010).
 
-**NÃO são baixados:** `consulta_cand`, `prestacao_contas`, `perfil_eleitorado`, `bens`, `vagas`, etc., economizando tempo e espaço em disco.
+O DER histórico possui um fluxo separado. Para gerar candidaturas, eleições,
+resultados e gastos desde 2002, consulte [`README_DER.md`](README_DER.md) e use
+`executar_der.py`; esse fluxo baixa `consulta_cand`, `votacao_candidato_munzona`
+e os recursos de prestação de contas localizados no catálogo oficial do TSE.

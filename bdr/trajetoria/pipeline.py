@@ -28,19 +28,22 @@ def baixar_fontes(escopo, pastas, apagar_zips=False):
     registro, problemas = [], []
     for ano in escopo["anos"]:
         for recurso, cfg in RECURSOS.items():
-            if cfg.get("anos_disponiveis") and ano not in cfg["anos_disponiveis"]:
-                registro.append({
-                    "ano": ano, "recurso": recurso, "status": "indisponivel",
-                    "extraidos": [], "itens_zip": 0,
-                })
-                print(f"   AVISO: {recurso} não publicado pelo TSE em {ano}")
-                continue
             nome = cfg["zip"].format(ano=ano)
-            url = f"{CDN_TSE}/{cfg['pasta']}/{nome}.zip"
             zip_path = pastas.zips / recurso / f"{nome}.zip"
             print(f"[{ano}] {recurso}")
             try:
-                status = baixar(url, zip_path)
+                urls = cfg.get("urls") or [f"{{cdn}}/{cfg['pasta']}/{nome}.zip"]
+                status = "cache" if zip_path.exists() and zip_path.stat().st_size > 0 else None
+                ultimo_erro = None
+                for modelo_url in urls:
+                    url = modelo_url.format(cdn=CDN_TSE, ano=ano)
+                    try:
+                        status = baixar(url, zip_path)
+                        break
+                    except FileNotFoundError as exc:
+                        ultimo_erro = exc
+                if status is None:
+                    raise ultimo_erro or FileNotFoundError(nome)
                 gerados, nomes = extrair_por_uf(
                     zip_path, pastas.raw, ano, cfg["partes"], escopo["ufs"]
                 )

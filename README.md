@@ -15,7 +15,8 @@ A pipeline permite analisar a relação empírica entre indicadores estruturais 
 
 ## 2. Escopo Temporal e Geográfico
 
-- **Escopo temporal:** Eleições gerais de **2022** e eleições municipais de **2024** (1º e 2º turnos).
+- **Questão 3:** eleições gerais de **2022** e municipais de **2024** (1º e 2º turnos).
+- **Questão 10 / DER completo:** candidaturas, eleições, resultados e despesas desde **2002 até 2024**, nos anos eleitorais publicados pelo TSE.
 - **Escopo por membro:** Cada membro da equipe é responsável por processar e gerar os dados de exatamente **2 Unidades da Federação (UFs)**.
 
 ### Divisão dos Membros
@@ -28,6 +29,10 @@ A pipeline permite analisar a relação empírica entre indicadores estruturais 
 | **4** | `PB` | `PI` | *(Configurável pelo grupo em `bdr/config.py`)* |
 
 > Para alterar a divisão do grupo, edite o dicionário `MEMBROS` em `bdr/config.py`.
+
+O fluxo histórico e a geração do DER completo estão documentados em
+[`README_DER.md`](README_DER.md). Não misture os arquivos brutos de Q3 e Q10:
+eles possuem layouts e granularidades diferentes.
 
 ---
 

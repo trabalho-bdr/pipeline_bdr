@@ -20,8 +20,12 @@ RECURSOS = {
     "despesas_contratadas_candidatos": {
         "pasta": "prestacao_contas",
         "zip": "prestacao_de_contas_eleitorais_candidatos_{ano}",
+        "urls": [
+            "{cdn}/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_{ano}.zip",
+            "{cdn}/prestacao_de_contas_eleitorais/prestacao_de_contas_eleitorais_candidatos_{ano}.zip",
+            "{cdn}/prestacao_contas/prestacao_de_contas_eleitorais_{ano}.zip",
+        ],
         "opcional": True,
-        "anos_disponiveis": (2018, 2020, 2022, 2024),
         "partes": {
             "despesas_contratadas_candidatos":
                 "despesas_contratadas_candidatos_{ano}_{uf}"

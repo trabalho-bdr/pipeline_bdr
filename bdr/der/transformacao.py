@@ -81,11 +81,9 @@ def construir(q3, q10, destino, consulta_cand=()):
             '''INSERT INTO "Candidato" SELECT id_candidato,titulo_eleitoral,nome,data_nascimento,genero,raca,ocupacao FROM q10.main.candidato''',
             '''INSERT INTO "Censo_Municipio" SELECT c.id_municipio,c.ano_referencia,c.populacao,c.idhm,c.pib,NULL,NULL
                FROM q3.main.censo_municipio c JOIN "Municipio" m USING(id_municipio)''',
-            '''INSERT INTO "Participacao_Eleitoral" SELECT md5('PARTICIPACAO|'||cast(p.ano AS varchar)||'|'||p.id_municipio),
+                '''INSERT INTO "Participacao_Eleitoral" SELECT md5('PARTICIPACAO|'||cast(p.ano AS varchar)||'|'||p.id_municipio||'|'||cast(p.turno AS varchar)),
                p.id_municipio,p.ano,NULL,p.eleitorado_apto,p.comparecimento,p.abstencoes,p.taxa_abstencao
-               FROM q3.main.participacao_eleitoral p JOIN "Municipio" m USING(id_municipio)
-               WHERE (p.ano=2022 AND p.cd_eleicao='544' AND p.turno=1)
-                  OR (p.ano=2024 AND p.cd_eleicao='619' AND p.turno=1)''',
+                    FROM q3.main.participacao_eleitoral p JOIN "Municipio" m USING(id_municipio)''',
                 '''INSERT INTO "Candidatura" SELECT c.id_candidatura,e.id_eleicao,c.id_candidato,m.id_municipio,p.id_partido,
                     c.uf,cand.nome_urna,c.numero_candidato,c.idade_eleicao,c.situacao_registro,c.sequencial,c.escolaridade_candidatura,c.patrimonio,c.gastos_campanha_total
                FROM q10.main.candidatura c JOIN eleicao_chave e ON e.ano=c.ano AND e.cd_eleicao=c.cd_eleicao
