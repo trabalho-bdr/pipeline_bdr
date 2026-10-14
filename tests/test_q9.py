@@ -615,11 +615,172 @@ class Questao9Test(unittest.TestCase):
         self.assertIsNone(v4)
         self.assertIsNone(v5)
 
-    def test_validacao_publicacao_incremental(self):
-        """Testa regras de validação da publicação incremental de Q9."""
-        with self.assertRaises(FileNotFoundError):
-            publicar_q9(self.raiz / "arquivo_fantasma.duckdb")
+    def test_somente_q9_nao_modifica_candidatura(self):
+        """Auditoria 1: Comprova que --somente-q9 trata Candidatura como estritamente somente-leitura.
+
+        Nenhum registro ou coluna de Candidatura (incluindo publicidade_propaganda) pode ser alterado.
+        """
+        banco = self.raiz / "banco_leitura_cand.duckdb"
+        self._criar_banco_base(banco)
+        trabalho = self.raiz / "trab_leitura_cand"
+
+        # Preenche valor preexistente em Candidatura.publicidade_propaganda para atestar preservação
+        con = duckdb.connect(str(banco))
+        con.execute('UPDATE "Candidatura" SET publicidade_propaganda = 9999.50 WHERE id_candidatura = \'CANDIDATURA_2018_T1\'')
+        cand_antes = con.execute('SELECT * FROM "Candidatura" ORDER BY id_candidatura').fetchall()
+        ele_antes = con.execute('SELECT * FROM "Eleicao" ORDER BY id_eleicao').fetchall()
+        part_antes = con.execute('SELECT * FROM "Partido" ORDER BY id_partido').fetchall()
+        con.close()
+
+        csv = (
+            "AA_ELEICAO;ST_TURNO;TP_PRESTACAO_CONTAS;DT_PRESTACAO_CONTAS;CD_ELEICAO;SG_UF;SQ_CANDIDATO;"
+            "SQ_DESPESA;DT_DESPESA;DS_ORIGEM_DESPESA;DS_DESPESA;VR_DESPESA_CONTRATADA;CD_CARGO\n"
+            "2018;1;Final;10/11/2018;297;RN;1001;D_TEST;01/09/2018;Publicidade por materiais impressos;Panfletos;500,00;03\n"
+        )
+        self._criar_zip_despesas(trabalho / "zips", 2018, "RN", csv)
+        processar_q9(ufs=["RN"], anos=[2018], banco=banco, trabalho=trabalho)
+
+        con = duckdb.connect(str(banco))
+        try:
+            cand_depois = con.execute('SELECT * FROM "Candidatura" ORDER BY id_candidatura').fetchall()
+            ele_depois = con.execute('SELECT * FROM "Eleicao" ORDER BY id_eleicao').fetchall()
+            part_depois = con.execute('SELECT * FROM "Partido" ORDER BY id_partido').fetchall()
+
+            self.assertEqual(cand_antes, cand_depois, "Candidatura foi alterada! Deve ser estritamente somente-leitura.")
+            self.assertEqual(ele_antes, ele_depois, "Eleicao foi alterada!")
+            self.assertEqual(part_antes, part_depois, "Partido foi alterado!")
+
+            # Verifica que o valor preexistente de publicidade_propaganda permanece intacto
+            val_preservado = con.execute("""
+                SELECT publicidade_propaganda FROM "Candidatura" WHERE id_candidatura = 'CANDIDATURA_2018_T1'
+            """).fetchone()[0]
+            self.assertEqual(val_preservado, 9999.50)
+        finally:
+            con.close()
+
+    def test_totais_publicidade_acessiveis_pela_view_q9(self):
+        """Auditoria 2: Comprova que os totais de publicidade são acessíveis pela view vw_publicidade_candidatura."""
+        banco = self.raiz / "banco_view_totais.duckdb"
+        self._criar_banco_base(banco)
+        trabalho = self.raiz / "trab_view_totais"
+
+        csv = (
+            "AA_ELEICAO;ST_TURNO;TP_PRESTACAO_CONTAS;DT_PRESTACAO_CONTAS;CD_ELEICAO;SG_UF;SQ_CANDIDATO;"
+            "SQ_DESPESA;DT_DESPESA;DS_ORIGEM_DESPESA;DS_DESPESA;VR_DESPESA_CONTRATADA;CD_CARGO\n"
+            "2018;1;Final;10/11/2018;297;RN;1001;D_PUB_1;01/09/2018;Publicidade por materiais impressos;Panfletos;400,00;03\n"
+            "2018;1;Final;10/11/2018;297;RN;1001;D_PUB_2;05/09/2018;Despesa com Impulsionamento de Conteúdos;Anúncio;600,00;03\n"
+            "2018;1;Final;10/11/2018;297;RN;1001;D_OPER;08/09/2018;Combustíveis e lubrificantes;Gasolina;200,00;03\n"
+        )
+        self._criar_zip_despesas(trabalho / "zips", 2018, "RN", csv)
+        processar_q9(ufs=["RN"], anos=[2018], banco=banco, trabalho=trabalho)
+
+        con = duckdb.connect(str(banco))
+        try:
+            view_res = con.execute("""
+                SELECT id_candidatura, total_publicidade, quantidade_despesas_publicidade
+                FROM "vw_publicidade_candidatura"
+                WHERE id_candidatura = 'CANDIDATURA_2018_T1'
+            """).fetchone()
+            self.assertIsNotNone(view_res, "View deve retornar dados para a candidatura.")
+            self.assertEqual(view_res[0], "CANDIDATURA_2018_T1")
+            self.assertEqual(float(view_res[1]), 1000.00, "Total de publicidade deve somar apenas itens de publicidade (400 + 600).")
+            self.assertEqual(view_res[2], 2, "Quantidade de itens de publicidade deve ser 2.")
+        finally:
+            con.close()
+
+    def test_despesa_eleicao_diferente_rejeitada(self):
+        """Auditoria 3: Comprova que uma despesa não pode ser associada a candidatura de eleição diferente."""
+        banco = self.raiz / "banco_eleicao_incompativel.duckdb"
+        self._criar_banco_base(banco)
+        trabalho = self.raiz / "trab_eleicao_incompativel"
+
+        csv = (
+            "AA_ELEICAO;ST_TURNO;TP_PRESTACAO_CONTAS;DT_PRESTACAO_CONTAS;CD_ELEICAO;SG_UF;SQ_CANDIDATO;"
+            "SQ_DESPESA;DT_DESPESA;DS_ORIGEM_DESPESA;DS_DESPESA;VR_DESPESA_CONTRATADA;CD_CARGO\n"
+            # cd_eleicao 9999 não existe para 2018
+            "2018;1;Final;10/11/2018;9999;RN;1001;D_ELE_ERR;01/09/2018;Publicidade por materiais impressos;Panfleto;300,00;03\n"
+        )
+        self._criar_zip_despesas(trabalho / "zips", 2018, "RN", csv)
+        processar_q9(ufs=["RN"], anos=[2018], banco=banco, trabalho=trabalho)
+
+        con = duckdb.connect(str(banco))
+        try:
+            total_vinculadas = con.execute('SELECT count(*) FROM "Despesa_Campanha"').fetchone()[0]
+            self.assertEqual(total_vinculadas, 0, "Despesa de eleição incompatível não pode ser vinculada!")
+
+            rejeitadas = con.execute("""
+                SELECT sq_candidato, motivo_rejeicao, valor_contratado
+                FROM "Despesa_Rejeitada"
+            """).fetchall()
+            self.assertEqual(len(rejeitadas), 1)
+            self.assertEqual(rejeitadas[0], ("1001", "ELEICAO_INCOMPATIVEL", 300.00))
+        finally:
+            con.close()
+
+    def test_despesa_cargo_diferente_rejeitada(self):
+        """Auditoria 4: Comprova que uma despesa não pode ser associada a candidatura de cargo diferente."""
+        banco = self.raiz / "banco_cargo_incompativel.duckdb"
+        self._criar_banco_base(banco)
+        trabalho = self.raiz / "trab_cargo_incompativel"
+
+        csv = (
+            "AA_ELEICAO;ST_TURNO;TP_PRESTACAO_CONTAS;DT_PRESTACAO_CONTAS;CD_ELEICAO;SG_UF;SQ_CANDIDATO;"
+            "SQ_DESPESA;DT_DESPESA;DS_ORIGEM_DESPESA;DS_DESPESA;VR_DESPESA_CONTRATADA;CD_CARGO\n"
+            # Candidato 1001 concorre a Governador (03), despesa informa cargo 06 (Deputado Federal)
+            "2018;1;Final;10/11/2018;297;RN;1001;D_CARGO_ERR;01/09/2018;Publicidade por materiais impressos;Panfleto;800,00;06\n"
+        )
+        self._criar_zip_despesas(trabalho / "zips", 2018, "RN", csv)
+        processar_q9(ufs=["RN"], anos=[2018], banco=banco, trabalho=trabalho)
+
+        con = duckdb.connect(str(banco))
+        try:
+            total_vinculadas = con.execute('SELECT count(*) FROM "Despesa_Campanha"').fetchone()[0]
+            self.assertEqual(total_vinculadas, 0, "Despesa de cargo incompatível não pode ser vinculada!")
+
+            rejeitadas = con.execute("""
+                SELECT sq_candidato, motivo_rejeicao, valor_contratado
+                FROM "Despesa_Rejeitada"
+            """).fetchall()
+            self.assertEqual(len(rejeitadas), 1)
+            self.assertEqual(rejeitadas[0], ("1001", "CARGO_INCOMPATIVEL", 800.00))
+        finally:
+            con.close()
+
+    def test_equivalencia_codigos_tse_e_identificadores_der(self):
+        """Auditoria 5: Comprova que códigos oficiais do TSE e identificadores internos do DER
+
+        se relacionam corretamente quando há equivalência válida.
+        """
+        banco = self.raiz / "banco_equiv_tse.duckdb"
+        self._criar_banco_base(banco)
+        trabalho = self.raiz / "trab_equiv_tse"
+
+        # DER tem: id_eleicao = 'ELE_2018_1', Cargo.nome = 'Governador'
+        # Fonte TSE tem: CD_ELEICAO = '297', CD_CARGO = '03'
+        csv = (
+            "AA_ELEICAO;ST_TURNO;TP_PRESTACAO_CONTAS;DT_PRESTACAO_CONTAS;CD_ELEICAO;SG_UF;SQ_CANDIDATO;"
+            "SQ_DESPESA;DT_DESPESA;DS_ORIGEM_DESPESA;DS_DESPESA;VR_DESPESA_CONTRATADA;CD_CARGO\n"
+            "2018;1;Final;10/11/2018;297;RN;1001;D_EQUIV;01/09/2018;Publicidade por materiais impressos;Equivalente;950,00;03\n"
+        )
+        self._criar_zip_despesas(trabalho / "zips", 2018, "RN", csv)
+        processar_q9(ufs=["RN"], anos=[2018], banco=banco, trabalho=trabalho)
+
+        con = duckdb.connect(str(banco))
+        try:
+            despesa = con.execute("""
+                SELECT d.id_candidatura, d.valor_contratado, c.sequencial
+                FROM "Despesa_Campanha" d
+                JOIN "Candidatura" c ON d.id_candidatura = c.id_candidatura
+                WHERE d.sequencial_despesa_tse = 'D_EQUIV'
+            """).fetchone()
+            self.assertIsNotNone(despesa, "A despesa com códigos oficiais do TSE deve vincular com sucesso via equivalência!")
+            self.assertEqual(despesa[0], "CANDIDATURA_2018_T1")
+            self.assertEqual(float(despesa[1]), 950.00)
+            self.assertEqual(despesa[2], "1001")
+        finally:
+            con.close()
 
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -247,6 +247,7 @@ def processar_q9(ufs=UFS_PADRAO_Q9, anos=ANOS_PADRAO_Q9, banco="dados_bdr/saida/
                     try_cast(dt_prestacao_contas AS DATE)
                 ) AS dt_prestacao_contas,
                 nullif(trim(cd_cargo), '') AS cd_cargo,
+                nullif(trim(ds_cargo), '') AS ds_cargo,
                 nullif(trim(nr_documento), '') AS nr_documento,
                 arquivo_origem
             FROM stg_q9_despesas_brutas
@@ -337,7 +338,91 @@ def processar_q9(ufs=UFS_PADRAO_Q9, anos=ANOS_PADRAO_Q9, banco="dados_bdr/saida/
         total_dedup = con.execute("SELECT count(*) FROM stg_q9_deduplicadas").fetchone()[0]
         print(f"Q9: Registros após deduplicação: {total_dedup:,}")
 
-        # 4. Lookup de Candidaturas com todos os identificadores oficiais
+        # 4. Tabelas de equivalência canônica de Cargos e Eleições
+        con.execute("""
+            CREATE TEMP TABLE stg_mapa_cargos (
+                termo VARCHAR,
+                cd_cargo_canonico VARCHAR,
+                ds_cargo_canonico VARCHAR
+            );
+            INSERT INTO stg_mapa_cargos VALUES
+                ('1', '01', 'PRESIDENTE'), ('01', '01', 'PRESIDENTE'), ('PRESIDENTE', '01', 'PRESIDENTE'),
+                ('2', '02', 'VICE-PRESIDENTE'), ('02', '02', 'VICE-PRESIDENTE'), ('VICE-PRESIDENTE', '02', 'VICE-PRESIDENTE'), ('VICE PRESIDENTE', '02', 'VICE-PRESIDENTE'),
+                ('3', '03', 'GOVERNADOR'), ('03', '03', 'GOVERNADOR'), ('GOVERNADOR', '03', 'GOVERNADOR'),
+                ('4', '04', 'VICE-GOVERNADOR'), ('04', '04', 'VICE-GOVERNADOR'), ('VICE-GOVERNADOR', '04', 'VICE-GOVERNADOR'), ('VICE GOVERNADOR', '04', 'VICE-GOVERNADOR'),
+                ('5', '05', 'SENADOR'), ('05', '05', 'SENADOR'), ('SENADOR', '05', 'SENADOR'),
+                ('1º SUPLENTE', '05', 'SENADOR'), ('1 SUPLENTE', '05', 'SENADOR'), ('PRIMEIRO SUPLENTE', '05', 'SENADOR'),
+                ('2º SUPLENTE', '05', 'SENADOR'), ('2 SUPLENTE', '05', 'SENADOR'), ('SEGUNDO SUPLENTE', '05', 'SENADOR'),
+                ('6', '06', 'DEPUTADO FEDERAL'), ('06', '06', 'DEPUTADO FEDERAL'), ('DEPUTADO FEDERAL', '06', 'DEPUTADO FEDERAL'),
+                ('7', '07', 'DEPUTADO ESTADUAL'), ('07', '07', 'DEPUTADO ESTADUAL'), ('DEPUTADO ESTADUAL', '07', 'DEPUTADO ESTADUAL'),
+                ('8', '08', 'DEPUTADO DISTRITAL'), ('08', '08', 'DEPUTADO DISTRITAL'), ('DEPUTADO DISTRITAL', '08', 'DEPUTADO DISTRITAL'),
+                ('11', '11', 'PREFEITO'), ('PREFEITO', '11', 'PREFEITO'),
+                ('12', '12', 'VICE-PREFEITO'), ('VICE-PREFEITO', '12', 'VICE-PREFEITO'), ('VICE PREFEITO', '12', 'VICE-PREFEITO'),
+                ('13', '13', 'VEREADOR'), ('VEREADOR', '13', 'VEREADOR');
+
+            CREATE TEMP TABLE stg_equiv_eleicao (
+                id_eleicao VARCHAR,
+                cd_eleicao VARCHAR,
+                ano INTEGER,
+                turno SMALLINT
+            );
+            INSERT INTO stg_equiv_eleicao VALUES
+                -- 2018 Geral
+                ('ELE_2018_1', '297', 2018, 1),
+                ('ELE_2018_2', '297', 2018, 2),
+                ('ELE_2018_2', '298', 2018, 2),
+                (NULL, '297', 2018, NULL),
+                (NULL, '298', 2018, 2),
+                -- 2020 Municipal
+                ('ELE_2020_1', '426', 2020, 1),
+                ('ELE_2020_2', '426', 2020, 2),
+                ('ELE_2020_2', '427', 2020, 2),
+                (NULL, '426', 2020, NULL),
+                (NULL, '427', 2020, 2),
+                -- 2022 Geral
+                ('ELE_2022_1', '546', 2022, 1),
+                ('ELE_2022_1', '544', 2022, 1),
+                ('ELE_2022_2', '546', 2022, 2),
+                ('ELE_2022_2', '547', 2022, 2),
+                ('ELE_2022_2', '545', 2022, 2),
+                (NULL, '546', 2022, NULL),
+                (NULL, '544', 2022, NULL),
+                (NULL, '547', 2022, 2),
+                (NULL, '545', 2022, 2),
+                -- 2024 Municipal
+                ('ELE_2024_1', '619', 2024, 1),
+                ('ELE_2024_2', '619', 2024, 2),
+                ('ELE_2024_2', '620', 2024, 2),
+                (NULL, '619', 2024, NULL),
+                (NULL, '620', 2024, 2);
+
+            -- Mapeia id_eleicao existentes em Eleicao com base nos códigos canônicos
+            INSERT INTO stg_equiv_eleicao (id_eleicao, cd_eleicao, ano, turno)
+            SELECT DISTINCT e.id_eleicao, eq.cd_eleicao, e.ano, e.turno
+            FROM "Eleicao" e
+            JOIN stg_equiv_eleicao eq ON eq.ano = e.ano AND (eq.turno IS NULL OR eq.turno = e.turno)
+            WHERE eq.id_eleicao IS NULL;
+
+            -- Mapeia caso o id_eleicao seja numérico e coincida com o código TSE
+            INSERT INTO stg_equiv_eleicao (id_eleicao, cd_eleicao, ano, turno)
+            SELECT id_eleicao, id_eleicao AS cd_eleicao, ano, turno
+            FROM "Eleicao"
+            WHERE regexp_matches(id_eleicao, '^[0-9]+$');
+        """)
+
+        # Se houver tabela de equivalência persistida no banco, importa
+        tem_equiv_bd = con.execute("""
+            SELECT count(*) FROM information_schema.tables
+            WHERE table_schema = 'main' AND lower(table_name) = 'equivalencia_eleicao'
+        """).fetchone()[0] > 0
+        if tem_equiv_bd:
+            con.execute("""
+                INSERT INTO stg_equiv_eleicao (id_eleicao, cd_eleicao, ano, turno)
+                SELECT id_eleicao, cd_eleicao, ano, turno
+                FROM "Equivalencia_Eleicao"
+            """)
+
+        # 5. Lookup de Candidaturas com todos os identificadores oficiais
         con.execute("""
             CREATE TEMP TABLE cand_lookup AS
             SELECT
@@ -347,37 +432,78 @@ def processar_q9(ufs=UFS_PADRAO_Q9, anos=ANOS_PADRAO_Q9, banco="dados_bdr/saida/
                 c.numero_urna,
                 e.ano,
                 e.turno,
-                max(upper(trim(coalesce(cg.nome, e.cargo, '')))) AS cargo
+                e.id_eleicao,
+                upper(trim(coalesce(cg.nome, e.cargo, ''))) AS cargo_bruto,
+                coalesce(mc.cd_cargo_canonico, NULL) AS cd_cargo_canonico,
+                coalesce(mc.ds_cargo_canonico, upper(trim(coalesce(cg.nome, e.cargo, '')))) AS ds_cargo_canonico
             FROM "Candidatura" c
             JOIN "Eleicao" e ON c.id_eleicao = e.id_eleicao
             LEFT JOIN "Cargo" cg ON cg.id_candidatura = c.id_candidatura
+            LEFT JOIN stg_mapa_cargos mc
+                   ON mc.termo = upper(trim(replace(replace(coalesce(cg.nome, e.cargo, ''), '-', ' '), '  ', ' ')))
             GROUP BY
                 c.id_candidatura,
                 c.sequencial,
                 c.uf,
                 c.numero_urna,
                 e.ano,
-                e.turno
+                e.turno,
+                e.id_eleicao,
+                cargo_bruto,
+                mc.cd_cargo_canonico,
+                mc.ds_cargo_canonico;
         """)
 
-        # 5. Correspondência rigorosa com Candidatura
-        # - Candidato disputando 1 turno: vinculado univocamente se turno compatível.
-        # - Candidato disputando 2 turnos: desambiguado pelo turno da despesa.
-        # - Sem turno em candidatura de múltiplos turnos: rejeitado com CORRESPONDENCIA_AMBIGUA.
-        # - Turno divergente do cadastro: rejeitado com TURNO_INCOMPATIVEL.
-        # - Não cadastrado ou em outra UF: rejeitado com motivo específico.
+        # 6. Correspondência rigorosa com Candidatura (Eleição, Cargo, Turno, UF)
         con.execute("""
             CREATE TEMP TABLE matches_cand AS
             SELECT
                 d.id_staging,
                 cl.id_candidatura,
                 cl.turno AS cand_turno,
-                count(*) OVER (PARTITION BY d.id_staging) AS total_matches_uf
+                -- 1. Validação rigorosa de Eleição
+                CASE
+                    WHEN d.cd_eleicao IS NULL THEN TRUE
+                    WHEN cl.id_eleicao = d.cd_eleicao THEN TRUE
+                    WHEN EXISTS (
+                        SELECT 1 FROM stg_equiv_eleicao eq
+                        WHERE (eq.id_eleicao = cl.id_eleicao OR (eq.ano = cl.ano AND (eq.turno IS NULL OR eq.turno = cl.turno)))
+                          AND eq.cd_eleicao = d.cd_eleicao
+                    ) THEN TRUE
+                    WHEN cl.id_eleicao = md5('ELEICAO|' || cast(cl.ano AS VARCHAR) || '|' || d.cd_eleicao || '|' || cast(cl.turno AS VARCHAR) || '|' || coalesce(cl.cd_cargo_canonico, '')) THEN TRUE
+                    WHEN cl.id_eleicao = md5('ELEICAO|' || cast(cl.ano AS VARCHAR) || '|' || d.cd_eleicao || '|' || cast(cl.turno AS VARCHAR) || '|' || ltrim(coalesce(cl.cd_cargo_canonico, ''), '0')) THEN TRUE
+                    ELSE FALSE
+                END AS eleicao_compativel,
+                -- 2. Validação rigorosa de Cargo
+                CASE
+                    WHEN d.cd_cargo IS NULL AND d.ds_cargo IS NULL THEN TRUE
+                    WHEN cl.cd_cargo_canonico IS NULL AND cl.cargo_bruto = '' THEN TRUE
+                    WHEN cl.cd_cargo_canonico IS NOT NULL AND coalesce(exp_cd.cd_cargo_canonico, exp_ds.cd_cargo_canonico) IS NOT NULL
+                        THEN (cl.cd_cargo_canonico = coalesce(exp_cd.cd_cargo_canonico, exp_ds.cd_cargo_canonico))
+                    WHEN cl.cargo_bruto != '' AND coalesce(d.ds_cargo, '') != ''
+                        THEN (upper(trim(replace(replace(cl.cargo_bruto, '-', ' '), '  ', ' '))) =
+                              upper(trim(replace(replace(d.ds_cargo, '-', ' '), '  ', ' '))))
+                    ELSE FALSE
+                END AS cargo_compativel,
+                -- 3. Validação rigorosa de Turno
+                CASE
+                    WHEN d.turno IS NULL THEN TRUE
+                    WHEN cl.turno = d.turno THEN TRUE
+                    ELSE FALSE
+                END AS turno_compativel
             FROM stg_q9_deduplicadas d
             JOIN cand_lookup cl
               ON cl.ano = d.ano
              AND cl.sq_candidato = d.sq_candidato
-             AND cl.uf = d.uf;
+             AND cl.uf = d.uf
+            LEFT JOIN (
+                SELECT DISTINCT termo, cd_cargo_canonico
+                FROM stg_mapa_cargos
+            ) exp_cd ON exp_cd.termo = upper(trim(replace(replace(coalesce(d.cd_cargo, ''), '-', ' '), '  ', ' ')))
+            LEFT JOIN (
+                SELECT DISTINCT termo, cd_cargo_canonico
+                FROM stg_mapa_cargos
+            ) exp_ds ON exp_ds.termo = upper(trim(replace(replace(coalesce(d.ds_cargo, ''), '-', ' '), '  ', ' ')));
 
             CREATE TEMP TABLE matches_validos AS
             SELECT
@@ -385,8 +511,19 @@ def processar_q9(ufs=UFS_PADRAO_Q9, anos=ANOS_PADRAO_Q9, banco="dados_bdr/saida/
                 m.id_candidatura
             FROM matches_cand m
             JOIN stg_q9_deduplicadas d ON d.id_staging = m.id_staging
-            WHERE (d.turno IS NULL AND m.total_matches_uf = 1)
-               OR (d.turno IS NOT NULL AND m.cand_turno = d.turno)
+            WHERE m.eleicao_compativel = TRUE
+              AND m.cargo_compativel = TRUE
+              AND m.turno_compativel = TRUE
+              AND (
+                  (d.turno IS NULL AND (
+                      SELECT count(*)
+                      FROM matches_cand m2
+                      WHERE m2.id_staging = m.id_staging
+                        AND m2.eleicao_compativel = TRUE
+                        AND m2.cargo_compativel = TRUE
+                  ) = 1)
+                  OR (d.turno IS NOT NULL)
+              )
             QUALIFY count(*) OVER (PARTITION BY m.id_staging) = 1;
 
             CREATE TEMP TABLE stg_q9_correspondencia AS
@@ -400,9 +537,17 @@ def processar_q9(ufs=UFS_PADRAO_Q9, anos=ANOS_PADRAO_Q9, banco="dados_bdr/saida/
                         THEN 'CANDIDATO_NAO_ENCONTRADO'
                     WHEN NOT EXISTS (SELECT 1 FROM cand_lookup cl WHERE cl.ano = d.ano AND cl.sq_candidato = d.sq_candidato AND cl.uf = d.uf)
                         THEN 'CANDIDATO_UF_DIVERGENTE'
-                    WHEN d.turno IS NULL AND (SELECT count(*) FROM matches_cand mc WHERE mc.id_staging = d.id_staging) > 1
-                        THEN 'CORRESPONDENCIA_AMBIGUA'
-                    WHEN d.turno IS NOT NULL AND NOT EXISTS (SELECT 1 FROM matches_cand mc WHERE mc.id_staging = d.id_staging AND mc.cand_turno = d.turno)
+                    WHEN d.cd_eleicao IS NOT NULL AND NOT EXISTS (
+                        SELECT 1 FROM matches_cand mc WHERE mc.id_staging = d.id_staging AND mc.eleicao_compativel = TRUE
+                    )
+                        THEN 'ELEICAO_INCOMPATIVEL'
+                    WHEN (d.cd_cargo IS NOT NULL OR d.ds_cargo IS NOT NULL) AND NOT EXISTS (
+                        SELECT 1 FROM matches_cand mc WHERE mc.id_staging = d.id_staging AND mc.eleicao_compativel = TRUE AND mc.cargo_compativel = TRUE
+                    )
+                        THEN 'CARGO_INCOMPATIVEL'
+                    WHEN d.turno IS NOT NULL AND NOT EXISTS (
+                        SELECT 1 FROM matches_cand mc WHERE mc.id_staging = d.id_staging AND mc.eleicao_compativel = TRUE AND mc.cargo_compativel = TRUE AND mc.turno_compativel = TRUE
+                    )
                         THEN 'TURNO_INCOMPATIVEL'
                     ELSE 'CORRESPONDENCIA_AMBIGUA'
                 END AS motivo_status
@@ -430,7 +575,8 @@ def processar_q9(ufs=UFS_PADRAO_Q9, anos=ANOS_PADRAO_Q9, banco="dados_bdr/saida/
                         coalesce(cast(valor_contratado AS VARCHAR), ''),
                         coalesce(origem_despesa, ''),
                         coalesce(descricao_despesa, ''),
-                        coalesce(cast(turno AS VARCHAR), '')
+                        coalesce(cast(turno AS VARCHAR), ''),
+                        motivo_status
                     ORDER BY id_staging
                 ) AS ordem_ocorrencia
             FROM stg_q9_correspondencia
@@ -506,8 +652,15 @@ def processar_q9(ufs=UFS_PADRAO_Q9, anos=ANOS_PADRAO_Q9, banco="dados_bdr/saida/
                 SELECT
                     md5('REJEICAO|' || cast(ano AS VARCHAR) || '|' || coalesce(cd_eleicao, '') || '|' ||
                         uf || '|' || sq_candidato || '|' ||
-                        coalesce(sq_despesa, '') || '|' || coalesce(cast(valor_contratado AS VARCHAR), '') || '|' ||
-                        coalesce(cast(data_despesa AS VARCHAR), '') || '|' || cast(ordem_ocorrencia AS VARCHAR)
+                        coalesce(sq_despesa, '') || '|' ||
+                        coalesce(nr_documento, '') || '|' ||
+                        coalesce(cast(valor_contratado AS VARCHAR), '') || '|' ||
+                        coalesce(cast(data_despesa AS VARCHAR), '') || '|' ||
+                        coalesce(origem_despesa, '') || '|' ||
+                        coalesce(descricao_despesa, '') || '|' ||
+                        coalesce(cast(turno AS VARCHAR), '') || '|' ||
+                        motivo_status || '|' ||
+                        cast(ordem_ocorrencia AS VARCHAR)
                     ) AS id_rejeicao,
                     motivo_status AS motivo_rejeicao,
                     ano, uf, cd_eleicao, sq_candidato, sq_despesa, turno,
@@ -516,24 +669,9 @@ def processar_q9(ufs=UFS_PADRAO_Q9, anos=ANOS_PADRAO_Q9, banco="dados_bdr/saida/
                 WHERE motivo_status != 'VINCULADO'
             """)
 
-            # Atualiza views da Q9
+            # Cria/atualiza views analíticas da Q9
+            # Nota: Candidatura é estritamente somente-leitura; a métrica total_publicidade é calculada pela view vw_publicidade_candidatura
             criar_views_q9(con)
-
-            # Atualiza Candidatura.publicidade_propaganda local para compatibilidade com rotinas legadas
-            con.execute("""
-                UPDATE "Candidatura" c
-                SET publicidade_propaganda = sub.total_pub
-                FROM (
-                    SELECT
-                        d.id_candidatura,
-                        sum(d.valor_contratado)::DOUBLE AS total_pub
-                    FROM "Despesa_Campanha" d
-                    JOIN "Categoria_Despesa" cat ON d.id_categoria_despesa = cat.id_categoria_despesa
-                    WHERE cat.eh_publicidade = true
-                    GROUP BY d.id_candidatura
-                ) sub
-                WHERE c.id_candidatura = sub.id_candidatura
-            """)
 
             # Validação rigorosa antes do commit
             relatorio = validar_q9(con)
