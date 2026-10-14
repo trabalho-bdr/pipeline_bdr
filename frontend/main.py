@@ -1,7 +1,7 @@
 """API somente leitura do mapa de apuração (FastAPI + DuckDB/MotherDuck).
 
 Rodar na raiz do repositório:  uv run uvicorn api.main:app --port 8000
-Variáveis: BDR_BANCO (padrão: banco DER local; ou md:pipeline_bdr_der_completo),
+Variáveis: BDR_BANCO (banco DER local ou md:pipeline_bdr_der_completo),
 MOTHERDUCK_TOKEN (somente no servidor), BDR_CORS (origens separadas por vírgula).
 """
 import logging
@@ -18,9 +18,13 @@ def _obter_banco_padrao():
     env_banco = os.environ.get("BDR_BANCO")
     if env_banco:
         return env_banco
-    padrao = "dados_bdr/saida/pipeline_bdr_der_completo.duckdb"
-    alt = "pipeline_bdr_der/dados_bdr/saida/pipeline_bdr_der.duckdb"
-    return alt if not os.path.exists(padrao) and os.path.exists(alt) else padrao
+    for caminho in (
+        "dados_bdr/saida/pipeline_bdr_der_completo.duckdb",
+        "pipeline_bdr_der/dados_bdr/saida/pipeline_bdr_der.duckdb",
+    ):
+        if os.path.isfile(caminho):
+            return caminho
+    return "md:pipeline_bdr_der_completo"
 
 BANCO = _obter_banco_padrao()
 UFS = {"CE", "MA", "MS", "RJ", "RN", "RS"}
@@ -37,8 +41,10 @@ def _conexao():
     with _lock:
         if _con is None:
             if BANCO.startswith("md:"):
-                if os.environ.get("MOTHERDUCK_TOKEN"):
-                    os.environ["motherduck_token"] = os.environ["MOTHERDUCK_TOKEN"]
+                token = os.environ.get("MOTHERDUCK_TOKEN") or os.environ.get("motherduck_token")
+                if not token:
+                    raise RuntimeError("Configure MOTHERDUCK_TOKEN no processo da API para consultar o banco online")
+                os.environ["motherduck_token"] = token
                 _con = duckdb.connect(BANCO)
                 try:
                     _con.execute("SET search_path = 'der_bdr,main'")
@@ -63,7 +69,10 @@ def _consultar(sql, params=()):
             cur.close()
     except Exception:  # não vaza detalhes internos nem credenciais
         log.exception("falha de consulta")
-        raise HTTPException(503, "Dados indisponíveis no momento")
+        detalhe = ("Banco online não configurado: defina MOTHERDUCK_TOKEN no processo da API"
+                   if BANCO.startswith("md:") and not (os.environ.get("MOTHERDUCK_TOKEN") or os.environ.get("motherduck_token"))
+                   else "Dados indisponíveis no momento")
+        raise HTTPException(503, detalhe)
 
 
 def _limpo(v):
@@ -106,3 +115,37 @@ def q3(uf: str, ano: int):
     linhas = _consultar(sql, [ano, uf])
     saida = {str(r["id_municipio"]).zfill(7): {k: _limpo(v) for k, v in r.items()} for r in linhas}
     return {"uf": uf, "ano": ano, "municipios": saida}
+
+
+@app.get("/api/legenda/opcoes")
+def opcoes_legenda():
+    linhas = _consultar('''
+        SELECT DISTINCT e.ano, e.cargo
+        FROM "Votos_Partido_Municipio" v
+        JOIN "Eleicao" e ON e.id_eleicao = v.id_eleicao
+        WHERE v.turno = 1 AND e.ano IS NOT NULL AND e.cargo IS NOT NULL
+        ORDER BY e.ano DESC, e.cargo
+    ''')
+    return {"opcoes": linhas}
+
+
+@app.get("/api/legenda/{uf}/{ano}")
+def votos_legenda(uf: str, ano: int, cargo: str):
+    uf = uf.upper()
+    if uf not in UFS:
+        raise HTTPException(422, "UF fora do recorte")
+    if (ano, cargo) not in {(r["ano"], r["cargo"]) for r in opcoes_legenda()["opcoes"]}:
+        raise HTTPException(422, "Ano ou cargo sem votos partidários")
+    linhas = _consultar('''
+        SELECT m.id_municipio, m.nome AS municipio, pa.id_partido, pa.sigla AS partido,
+               sum(coalesce(v.votos_legenda, 0))::BIGINT AS votos_legenda,
+               sum(coalesce(v.votos_nominais, 0))::BIGINT AS votos_nominais
+        FROM "Votos_Partido_Municipio" v
+        JOIN "Eleicao" e ON e.id_eleicao = v.id_eleicao
+        JOIN "Municipio" m ON m.id_municipio = v.id_municipio
+        JOIN "Partido" pa ON pa.id_partido = v.id_partido
+        WHERE m.uf = ? AND e.ano = ? AND e.cargo = ? AND v.turno = 1
+        GROUP BY m.id_municipio, m.nome, pa.id_partido, pa.sigla
+        ORDER BY m.nome, pa.sigla
+    ''', [uf, ano, cargo])
+    return {"uf": uf, "ano": ano, "cargo": cargo, "linhas": linhas}
