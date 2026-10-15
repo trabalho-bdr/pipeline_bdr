@@ -15,6 +15,7 @@ type Props = {
   onUf: (sigla: string) => void; onMun: (id: string) => void;
   onMunicipioBusca: (sigla: string, id: string) => void;
   legendaMapa?: ComponentChildren;
+  controlesMapa?: ComponentChildren;
 };
 
 const normalizar = (valor: string) => valor.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
@@ -85,7 +86,7 @@ export function Mapa(p: Props) {
   const iSel = p.mun ? p.muns.findIndex((f) => f.properties.codarea === p.mun) : -1;
   const comMun = p.muns.length > 0;
   return (
-    <div class={`mapa ${p.mun ? "mapa-com-municipio" : ""}`}>
+    <div class={`mapa ${p.mun ? "mapa-com-municipio" : ""} ${p.controlesMapa ? "mapa-com-modos" : ""}`}>
       <div class="mapa-busca">
         <label for="busca-municipio-mapa">Buscar município</label>
         <div class="mapa-busca-campo"><span aria-hidden="true">⌕</span><input id="busca-municipio-mapa" type="search" value={busca}
@@ -119,6 +120,7 @@ export function Mapa(p: Props) {
           {iSel >= 0 && <path d={dMun[iSel]} class="mun sel" pointer-events="none" />}
         </g>
       </svg>
+      {p.controlesMapa}
       {p.mun && <div class="mapa-municipio-selecionado" role="status"><span>Município no mapa</span><strong>{p.nomes[p.mun] ?? p.mun}{p.uf ? ` · ${p.uf}` : ""}</strong></div>}
       {p.legendaMapa && <div class="mapa-legenda">{p.legendaMapa}</div>}
       {!p.uf && <div class="mapa-hint">Busque um município ou selecione um estado</div>}

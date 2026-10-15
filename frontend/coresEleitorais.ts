@@ -1,4 +1,4 @@
-/** Cores de interface para séries, sem representar cores oficiais. */
+/** Paleta única dos partidos em mapas, rankings e séries. */
 export const CORES_UF: Record<string, string> = {
   CE: "#59a6c8",
   MA: "#e064a2",
@@ -8,16 +8,24 @@ export const CORES_UF: Record<string, string> = {
   RS: "#b0b76d",
 };
 
-const CORES_PARTIDO = [
-  "#f03d94", "#65a9d7", "#d89a64", "#a68ce0", "#6abda6", "#d47486",
-  "#8faf68", "#d2b66a", "#7c9be4", "#bd81b8", "#76b8bd", "#c78d74",
-];
-const PARTIDOS_EXEMPLO: Record<string, number> = { PL: 0, PT: 1, MDB: 2, PP: 3, "UNIÃO": 4, PSD: 5, PSB: 6 };
+const coresAtribuidas = new Map<string, string>([["PT", "hsl(350 52% 54%)"], ["PL", "hsl(220 49% 57%)"]]);
+const coresUsadas = new Set(coresAtribuidas.values());
 
-export function corPartido(id: string): string {
-  const conhecido = PARTIDOS_EXEMPLO[id];
-  if (conhecido !== undefined) return CORES_PARTIDO[conhecido];
+export function corPartido(partido: string): string {
+  const sigla = partido.trim().toUpperCase();
+  if (sigla === "13") return corPartido("PT");
+  if (sigla === "22") return corPartido("PL");
+  const atribuida = coresAtribuidas.get(sigla);
+  if (atribuida) return atribuida;
   let hash = 0;
-  for (const caractere of id) hash = (hash * 31 + caractere.charCodeAt(0)) >>> 0;
-  return CORES_PARTIDO[hash % CORES_PARTIDO.length];
+  for (const caractere of sigla) hash = (hash * 31 + caractere.charCodeAt(0)) >>> 0;
+  let tentativa = 0;
+  let cor: string;
+  do {
+    const indice = hash + tentativa++;
+    cor = `hsl(${indice % 360} ${40 + Math.floor(indice / 360) % 13}% ${55 + Math.floor(indice / 4680) % 12}%)`;
+  } while (coresUsadas.has(cor));
+  coresAtribuidas.set(sigla, cor);
+  coresUsadas.add(cor);
+  return cor;
 }

@@ -15,10 +15,11 @@ type OpcaoLegenda = { ano: number; cargo: string };
 type DadosUfLegenda = { uf: string; linhas: LinhaLegenda[] };
 type DadosAnoUfLegenda = DadosUfLegenda & { ano: number };
 const COBERTOS = ["CE", "MA", "MS", "RJ", "RN", "RS"];
+const ANOS_CARGO_LEGENDA: Record<string, number[]> = { "Deputado Federal": [2018, 2022], "Deputado Estadual": [2018, 2022], "Vereador": [2020, 2024] };
 const SEM_MUNICIPIOS: { id: string; nome: string }[] = [];
 const SEM_OPCOES_LEGENDA: OpcaoLegenda[] = [];
 const CINZA_SEM_REGISTRO = "#2b2b31", ROXO_SEM_VALOR = "#4a3d5c";
-const CORES_INTENSIDADE_UF = ["#735a9e", "#b54c9d", "#ff68a8"];
+const CORES_INTENSIDADE_UF = ["#56a6c3", "#8b79bb", "#e773ae"];
 
 const json = async <T,>(u: string, signal?: AbortSignal): Promise<T> => {
   const r = await fetch(u, { signal });
@@ -45,6 +46,7 @@ export function App() {
   const [analise, setAnalise] = useState<"abstencao" | "legenda" | "publicidade">("abstencao");
   const [todosAnosLegenda, setTodosAnosLegenda] = useState(false);
   const [mostrarMock, setMostrarMock] = useState(false);
+  const [visaoMapa, setVisaoMapa] = useState<"intensidade" | "vencedor">("vencedor");
   const [cat, setCat] = useState<Cat | null>(null);
   const [ufs, setUfs] = useState<Feat[]>([]);
   const [uf, setUf] = useState<string | null>(null);
@@ -60,6 +62,9 @@ export function App() {
   const [cargo, setCargo] = useState("");
   const [partido, setPartido] = useState("");
   const [buscaRankingPartido, setBuscaRankingPartido] = useState("");
+  const [mostrarTodosPartidos, setMostrarTodosPartidos] = useState(false);
+  const [ordemPartidos, setOrdemPartidos] = useState<"votos" | "participacao">("votos");
+  const [faixaLegendaSelecionada, setFaixaLegendaSelecionada] = useState<number | null>(null);
   const [linhasLegenda, setLinhasLegenda] = useState<LinhaLegenda[]>([]);
   const [statusLegenda, setStatusLegenda] = useState<"ok" | "carregando" | "erro">("ok");
   const [dadosBrasil, setDadosBrasil] = useState<DadosUfLegenda[]>([]);
@@ -67,7 +72,7 @@ export function App() {
   const [dadosHistoricos, setDadosHistoricos] = useState<DadosAnoUfLegenda[]>([]);
   const [statusHistorico, setStatusHistorico] = useState<"ok" | "carregando" | "erro">("ok");
   const [chaveHistorico, setChaveHistorico] = useState("");
-  const chaveHistoricoAtual = `${cargo}|${uf ?? "BR"}|${opcoesLegenda.filter((item) => item.cargo === cargo).map((item) => item.ano).join(",")}`;
+  const chaveHistoricoAtual = `${cargo}|${uf ?? "BR"}|${opcoesLegenda.filter((item) => item.cargo === cargo && ANOS_CARGO_LEGENDA[cargo]?.includes(item.ano)).map((item) => item.ano).join(",")}`;
   const cache = useRef(new Map<string, Dados>());
 
   useEffect(() => {  // base geográfica (estática) e anos disponíveis (API)
@@ -77,7 +82,7 @@ export function App() {
       .catch(() => setStatus("api"));
     json<{ opcoes: OpcaoLegenda[] }>("/api/legenda/opcoes").then((r) => {
       setOpcoesLegenda(r.opcoes);
-      const preferida = r.opcoes.find((o) => o.ano === 2022 && o.cargo === "Deputado Federal") || r.opcoes[0];
+      const preferida = r.opcoes.find((o) => o.ano === 2022 && o.cargo === "Deputado Federal") || r.opcoes.find((o) => ANOS_CARGO_LEGENDA[o.cargo]?.includes(o.ano));
       if (preferida) { setAnoLegenda(preferida.ano); setCargo(preferida.cargo); }
     }).catch(() => setStatusLegenda("erro"));
   }, []);
@@ -122,8 +127,8 @@ export function App() {
   }, [mostrarMock, todosAnosLegenda, uf, analise, anoLegenda, cargo]);
 
   useEffect(() => {
-    if (!todosAnosLegenda || mostrarMock || analise !== "legenda" || !cargo) { setDadosHistoricos([]); return; }
-    const anosCargo = [...new Set(opcoesLegenda.filter((item) => item.cargo === cargo).map((item) => item.ano))];
+    if (mostrarMock || analise !== "legenda" || !cargo) { setDadosHistoricos([]); return; }
+    const anosCargo = [...new Set(opcoesLegenda.filter((item) => item.cargo === cargo && ANOS_CARGO_LEGENDA[cargo]?.includes(item.ano)).map((item) => item.ano))];
     if (!anosCargo.length) { setChaveHistorico(chaveHistoricoAtual); setDadosHistoricos([]); setStatusHistorico("erro"); return; }
     const ac = new AbortController();
     setChaveHistorico(chaveHistoricoAtual); setDadosHistoricos([]); setStatusHistorico("carregando");
@@ -135,19 +140,21 @@ export function App() {
     })))).then((itens) => { if (!ac.signal.aborted) { setDadosHistoricos(itens); setStatusHistorico("ok"); } })
       .catch((e) => { if (e.name !== "AbortError") setStatusHistorico("erro"); });
     return () => ac.abort();
-  }, [todosAnosLegenda, mostrarMock, analise, cargo, uf, opcoesLegenda, chaveHistoricoAtual]);
+  }, [mostrarMock, analise, cargo, uf, opcoesLegenda, chaveHistoricoAtual]);
 
   const siglas = useMemo(() => Object.fromEntries((cat?.ufs ?? []).map((u) => [u.cod, u.sigla])), [cat]);
   const lista = useMemo(() => uf ? cat?.municipios[uf] ?? SEM_MUNICIPIOS : cat ? COBERTOS.flatMap((sigla) => cat.municipios[sigla] ?? []) : SEM_MUNICIPIOS, [cat, uf]);
-  const opcoesAtivas = opcoesLegenda.length ? opcoesLegenda : mostrarMock ? opcoesMockLegenda : SEM_OPCOES_LEGENDA;
+  const opcoesAtivas = (opcoesLegenda.length ? opcoesLegenda : mostrarMock ? opcoesMockLegenda : SEM_OPCOES_LEGENDA)
+    .filter((item) => ANOS_CARGO_LEGENDA[item.cargo]?.includes(item.ano));
   const anosCargo = [...new Set(opcoesAtivas.filter((item) => item.cargo === cargo).map((item) => item.ano))].sort((a, b) => a - b);
+  useEffect(() => { if (anosCargo.length && !todosAnosLegenda && !anosCargo.includes(anoLegenda ?? -1)) setAnoLegenda(anosCargo.at(-1)!); }, [cargo, anoLegenda, todosAnosLegenda, opcoesLegenda]);
   const periodoLegenda = todosAnosLegenda && anosCargo.length > 1 ? `soma de ${anosCargo.join(", ")}` : `${anosCargo[0] ?? anoLegenda ?? "—"}`;
   const dadosHistoricosMock = useMemo((): DadosAnoUfLegenda[] => {
-    if (!mostrarMock || !cat || !todosAnosLegenda) return [];
+    if (!mostrarMock || !cat) return [];
     return opcoesAtivas.filter((item) => item.cargo === cargo).flatMap((item) => COBERTOS.map((sigla) => ({
       ano: item.ano, uf: sigla, linhas: gerarLinhasMockLegenda(cat.municipios[sigla] ?? SEM_MUNICIPIOS, item.ano, cargo),
     })));
-  }, [mostrarMock, cat, todosAnosLegenda, cargo, opcoesAtivas]);
+  }, [mostrarMock, cat, cargo, opcoesAtivas]);
   const dadosHistoricosAtivos = mostrarMock ? dadosHistoricosMock : chaveHistorico === chaveHistoricoAtual ? dadosHistoricos : [];
   const dadosUf = todosAnosLegenda
     ? dadosHistoricosAtivos.length ? (uf ? [uf] : COBERTOS).map((sigla) => ({ uf: sigla, linhas: somarLinhasLegenda(dadosHistoricosAtivos.filter((item) => item.uf === sigla).flatMap((item) => item.linhas)) })) : []
@@ -170,6 +177,25 @@ export function App() {
   const municipiosBusca = useMemo(() => Object.entries(cat?.municipios ?? {}).flatMap(([sigla, municipios]) =>
     municipios.map((item) => ({ ...item, uf: sigla }))), [cat]);
   const ufPorMunicipio = useMemo(() => Object.fromEntries(municipiosBusca.map((item) => [item.id, item.uf])), [municipiosBusca]);
+  const votosPorMunicipioPartido = new Map<string, Map<string, { id: string; nome: string; votos: number }>>();
+  const votosPorUfPartido = new Map<string, Map<string, { id: string; nome: string; votos: number }>>();
+  for (const linha of linhasFonte) {
+    if (partido && linha.id_partido !== partido) continue;
+    const sigla = ufPorMunicipio[linha.id_municipio];
+    if (!sigla || linha.votos_legenda <= 0) continue;
+    for (const [chave, grupos] of [[linha.id_municipio, votosPorMunicipioPartido], [sigla, votosPorUfPartido]] as const) {
+      let partidosLocal = grupos.get(chave);
+      if (!partidosLocal) { partidosLocal = new Map(); grupos.set(chave, partidosLocal); }
+      const atual = partidosLocal.get(linha.id_partido);
+      if (atual) atual.votos += linha.votos_legenda;
+      else partidosLocal.set(linha.id_partido, { id: linha.id_partido, nome: linha.partido, votos: linha.votos_legenda });
+    }
+  }
+  const vencedores = (grupos: Map<string, Map<string, { id: string; nome: string; votos: number }>>) => new Map(
+    [...grupos].map(([local, partidosLocal]) => [local, [...partidosLocal.values()].sort((a, b) => b.votos - a.votos || a.nome.localeCompare(b.nome, "pt-BR"))[0]]),
+  );
+  const vencedorMunicipio = vencedores(votosPorMunicipioPartido);
+  const vencedorUf = vencedores(votosPorUfPartido);
   const selecionarUf = (sigla: string | null) => { setUf(sigla); setMun(null); };
   const selecionarMunicipio = (sigla: string, id: string) => { setUf(sigla); setMun(id); };
   const valido = dados && dados.uf === uf && dados.ano === ano ? dados : null;
@@ -178,8 +204,9 @@ export function App() {
   const escala = valores.length ? scaleLinear<string>().domain([lo, hi]).range(["#2f4fbf", "#ff5a4d"]) : null;
   const partidos = [...new Map(linhasFonte.map((r) => [r.id_partido, r.partido])).entries()].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
   const linhasAtivas = linhasFonte.filter((r) => !partido || r.id_partido === partido);
+  const partidosComRegistroMapa = [...new Set(linhasAtivas.filter((r) => (!mun || r.id_municipio === mun) && r.votos_legenda > 0).map((r) => r.partido))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const historicoMock = useMemo(() => mostrarMock ? opcoesAtivas.filter((item) => item.cargo === cargo).map((item) => resumirLegendaPorPartido(item.ano, gerarLinhasMockLegenda(lista, item.ano, cargo).filter((r) => !mun || r.id_municipio === mun))) : undefined, [mostrarMock, lista, cargo, mun, opcoesAtivas]);
-  const historicoExterno: HistoricoAno[] | undefined = todosAnosLegenda && !mostrarMock
+  const historicoExterno: HistoricoAno[] | undefined = !mostrarMock
     ? anosCargo.map((anoConsulta) => resumirLegendaPorPartido(anoConsulta, dadosHistoricosAtivos.filter((item) => item.ano === anoConsulta).flatMap((item) => item.linhas).filter((item) => !mun || item.id_municipio === mun)))
     : undefined;
   const dadosProntosLegenda = mostrarMock ? !!cat : todosAnosLegenda ? statusHistorico === "ok" && chaveHistorico === chaveHistoricoAtual && dadosHistoricosAtivos.length > 0 : uf ? statusLegenda === "ok" : statusBrasil === "ok";
@@ -197,8 +224,10 @@ export function App() {
     atual.votos += r.votos_legenda; acc.set(r.id_partido, atual); return acc;
   }, new Map<string, { id: string; nome: string; votos: number }>()).values()].sort((a, b) => b.votos - a.votos);
   const termoRankingPartido = buscaRankingPartido.trim().normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase("pt-BR");
-  const partidosVisiveis = termoRankingPartido ? rankingPartidos.filter((item) => item.nome.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase("pt-BR").includes(termoRankingPartido)) : rankingPartidos;
+  const partidosFiltrados = termoRankingPartido ? rankingPartidos.filter((item) => item.nome.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase("pt-BR").includes(termoRankingPartido)) : rankingPartidos;
+  const partidosVisiveis = mostrarTodosPartidos || termoRankingPartido ? partidosFiltrados : partidosFiltrados.slice(0, 10);
   const percentuaisMunicipios = [...porMunicipio.values()].filter((r) => r.legenda + r.nominais > 0).map((r) => 100 * r.legenda / (r.legenda + r.nominais));
+  const percentuaisDistribuicao = mun ? [...porMunicipio.entries()].filter(([id, r]) => id === mun && r.legenda + r.nominais > 0).map(([, r]) => 100 * r.legenda / (r.legenda + r.nominais)) : percentuaisMunicipios;
   const votosLegendaEstado = uf ? [...porMunicipio.values()].reduce((soma, r) => soma + r.legenda, 0) : 0;
   const votosNominaisEstado = uf ? [...porMunicipio.values()].reduce((soma, r) => soma + r.nominais, 0) : 0;
   const participacaoEstado = votosLegendaEstado + votosNominaisEstado > 0 ? 100 * votosLegendaEstado / (votosLegendaEstado + votosNominaisEstado) : null;
@@ -208,11 +237,15 @@ export function App() {
     .sort((a, b) => b.percentual - a.percentual || b.legenda - a.legenda) : [];
   const acimaMediaEstado = participacaoEstado === null ? 0 : municipiosPorParticipacao.filter((item) => item.percentual > participacaoEstado).length;
   const menorMunicipio = Math.min(...percentuaisMunicipios), maiorMunicipio = Math.max(...percentuaisMunicipios);
+  const percentuaisOrdenados = [...percentuaisMunicipios].sort((a, b) => a - b);
+  const quantil = (fracao: number) => percentuaisOrdenados[Math.floor((percentuaisOrdenados.length - 1) * fracao)] ?? 0;
+  const [limiteBaixo, limiteMedio, limiteAlto] = [quantil(0.1), quantil(0.5), quantil(0.9)];
   const escalaIntensidadeMunicipio = percentuaisMunicipios.length ? scaleLinear<string>()
-    .domain(menorMunicipio === maiorMunicipio ? [menorMunicipio - 1, menorMunicipio, menorMunicipio + 1] : [menorMunicipio, (menorMunicipio + maiorMunicipio) / 2, maiorMunicipio])
+    .domain(menorMunicipio === maiorMunicipio ? [menorMunicipio - 1, menorMunicipio, menorMunicipio + 1] : [limiteBaixo, limiteMedio, limiteAlto])
     .range(CORES_INTENSIDADE_UF).clamp(true) : null;
   const cor = (id: string) => {
     if (analise === "legenda") {
+      if (visaoMapa === "vencedor") return vencedorMunicipio.has(id) ? corPartido(vencedorMunicipio.get(id)!.nome) : CINZA_SEM_REGISTRO;
       const r = porMunicipio.get(id);
       if (!r || r.legenda + r.nominais === 0) return CINZA_SEM_REGISTRO;
       const share = 100 * r.legenda / (r.legenda + r.nominais);
@@ -224,16 +257,25 @@ export function App() {
     return typeof v === "number" && escala ? escala(v) : ROXO_SEM_VALOR;  // 0 é cor válida; null é outra
   };
   const corUf = (sigla: string) => {
+    if (visaoMapa === "vencedor") return vencedorUf.has(sigla) ? corPartido(vencedorUf.get(sigla)!.nome) : undefined;
     const item = estadoLinhas.find((r) => r.uf === sigla);
     return item?.temDados ? escalaIntensidadeUf?.(item.percentual) : undefined;
   };
   const descricaoUf = (sigla: string) => {
+    if (visaoMapa === "vencedor") {
+      const vencedor = vencedorUf.get(sigla);
+      return vencedor ? `${sigla} — ${vencedor.nome}: ${fmt(vencedor.votos)} votos de legenda` : `${sigla} — sem dados disponíveis`;
+    }
     const item = estadoLinhas.find((r) => r.uf === sigla);
     return item?.temDados ? `${sigla} — ${fmt(item.percentual, 1, "%")} de votos de legenda · ${fmt(item.legenda)} votos` : `${sigla} — sem dados disponíveis`;
   };
   const descricaoMun = (id: string) => {
     const registro = porMunicipio.get(id);
     const nome = nomes[id] || id;
+    if (visaoMapa === "vencedor") {
+      const vencedor = vencedorMunicipio.get(id);
+      return vencedor && registro ? `${nome} · ${vencedor.nome}: ${fmt(vencedor.votos)} de ${fmt(registro.legenda)} votos de legenda (${fmt(100 * vencedor.votos / Math.max(1, registro.legenda), 1, "%")})` : `${nome} — sem dados disponíveis`;
+    }
     return registro ? `${nome} — ${fmt(100 * registro.legenda / Math.max(1, registro.legenda + registro.nominais), 1, "%")} de votos de legenda · ${fmt(registro.legenda)} votos` : `${nome} — sem dados disponíveis`;
   };
   const sel = mun && valido ? valido.municipios[mun] : undefined;
@@ -248,9 +290,10 @@ export function App() {
     valor: valores.filter((v) => v >= inicio && (inicio === 50 || v < inicio + 10)).length,
   }));
   const faixasLegenda = [0, 5, 10, 15, 20, 25].map((inicio) => ({
+    inicio,
     rotulo: inicio === 25 ? "25%+" : `${inicio}–${inicio + 5}%`,
-    valor: percentuaisMunicipios.filter((v) => v >= inicio && (inicio === 25 || v < inicio + 5)).length,
-  }));
+    valor: percentuaisDistribuicao.filter((v) => v >= inicio && (inicio === 25 || v < inicio + 5)).length,
+  })).filter((faixa) => faixa.valor > 0 || faixa.inicio === faixaLegendaSelecionada);
   const faixasAtivas = analise === "legenda" ? faixasLegenda : faixas;
   const maxFaixaAtiva = Math.max(1, ...faixasAtivas.map((f) => f.valor));
   const anoAtivo = analise === "legenda" ? anoLegenda : ano;
@@ -262,18 +305,23 @@ export function App() {
     <div class="barra" /><span>{valores.length ? `${lo.toFixed(1)} → ${hi.toFixed(1)}` : "Aguardando dados"}</span>
     <span><i style={{ background: CINZA_SEM_REGISTRO }} /> sem registro</span>
     <span><i style={{ background: ROXO_SEM_VALOR }} /> registro sem valor</span></div>
-    : !uf ? <div class="legenda"><strong>Intensidade de votos de legenda</strong>
+    : visaoMapa === "vencedor" ? undefined
+    : !uf ? <div class="legenda"><strong>Participação dos votos de legenda</strong>
       <div class="barra" style={{ background: `linear-gradient(90deg, ${CORES_INTENSIDADE_UF.join(", ")})` }} />
       <span>{percentuaisUf.length ? `${fmt(menorUf, 1, "%")} → ${fmt(maiorUf, 1, "%")}` : "Aguardando dados das UFs"}</span>
       <span>Escala relativa entre as UFs neste recorte.</span>
       <span><i style={{ background: CINZA_SEM_REGISTRO }} /> sem dados neste recorte</span></div>
     : <div class="legenda"><strong>Votos de legenda (%)</strong>
       <div class="barra" style={{ background: `linear-gradient(90deg, ${CORES_INTENSIDADE_UF.join(", ")})` }} />
-      <span>{percentuaisMunicipios.length ? `${fmt(menorMunicipio, 1, "%")} → ${fmt(maiorMunicipio, 1, "%")}` : "Aguardando dados dos municípios"}</span>
-      <span>Cores relativas aos municípios · <i style={{ background: CINZA_SEM_REGISTRO }} /> sem dados</span></div>;
+      <span>{percentuaisMunicipios.length ? `${fmt(limiteBaixo, 1, "%")} (P10) → ${fmt(limiteAlto, 1, "%")} (P90)` : "Aguardando dados dos municípios"}</span>
+      <span>Extremos usam a cor do limite · <i style={{ background: CINZA_SEM_REGISTRO }} /> sem dados</span></div>;
+  const controlesMapa = analise === "legenda" ? <div class="mapa-modos" role="group" aria-label="Visão do mapa">
+    <button type="button" aria-pressed={visaoMapa === "vencedor"} onClick={() => setVisaoMapa("vencedor")}>Partido mais votado</button>
+    <button type="button" aria-pressed={visaoMapa === "intensidade"} onClick={() => setVisaoMapa("intensidade")}>% votos de legenda</button>
+  </div> : undefined;
 
   return (
-    <div class={`layout layout-painel ${analise === "legenda" ? "analysis-legenda" : "analysis-abstencao"} ${analise === "legenda" && mun ? "municipio-selecionado" : ""} ${analise === "legenda" && mostrarMock ? "preview-mock" : ""}`}>
+    <div class={`layout layout-painel ${analise === "legenda" ? "analysis-legenda" : "analysis-abstencao"} ${analise === "legenda" && mun && visaoMapa === "intensidade" ? "municipio-selecionado" : ""} ${analise === "legenda" && mostrarMock ? "preview-mock" : ""}`}>
       <header class="app-header">
         <div class="app-header-main">
           <div class="view-heading"><span class="view-kicker">ELEIÇÕES BRASIL / PAINEL{analise === "legenda" && mostrarMock ? " / DADOS SIMULADOS" : ""}</span><strong>{analise === "legenda" ? "Votos por legenda" : "Participação eleitoral"}</strong><div class="view-context" aria-live="polite"><span>{mun ? `${nomes[mun] || mun} · ${nomeUf} (${uf})` : uf ? `${nomeUf} (${uf})` : analise === "legenda" ? "Brasil · UFs disponíveis" : "Brasil"}</span>{analise === "legenda" && mun && <button type="button" onClick={() => setMun(null)}>← Voltar ao estado</button>}</div></div>
@@ -293,19 +341,11 @@ export function App() {
             else setAno(a);
           }} disabled={analise === "legenda" ? !opcoesAtivas.length : !anos.length}>
             {analise === "legenda" && <option value="todos">Todos os anos</option>}
-            {(analise === "legenda" ? [...new Set(opcoesAtivas.map((o) => o.ano))].sort((a, b) => b - a) : anos).map((a) => <option key={a} value={a}>{a}</option>)}</select></label>
+            {(analise === "legenda" ? anosCargo.slice().reverse() : anos).map((a) => <option key={a} value={a}>{a}</option>)}</select></label>
           {analise === "legenda" && <><label>Cargo <select value={cargo} disabled={!opcoesAtivas.length} onChange={(e) => { setCargo((e.target as HTMLSelectElement).value); setPartido(""); }}>{(todosAnosLegenda ? [...new Map(opcoesAtivas.map((o) => [o.cargo, o])).values()] : opcoesAtivas.filter((o) => o.ano === anoLegenda)).sort((a, b) => a.cargo.localeCompare(b.cargo, "pt-BR")).map((o) => <option key={`${o.ano}-${o.cargo}`} value={o.cargo}>{o.cargo}</option>)}</select></label>
-            <label class="global-party-filter"><span>Partido <small>todos os gráficos</small></span><select value={partido} onChange={(e) => setPartido((e.target as HTMLSelectElement).value)}><option value="">Todos</option>{partidos.map(([id, nome]) => <option value={id}>{nome}</option>)}</select></label></>}
-          {analise === "legenda" && <button class="mock-toggle" aria-pressed={mostrarMock} onClick={() => {
-            const proximasOpcoes = mostrarMock ? opcoesLegenda : opcoesLegenda.length ? opcoesLegenda : opcoesMockLegenda;
-            if (!(todosAnosLegenda ? proximasOpcoes.some((o) => o.cargo === cargo) : proximasOpcoes.some((o) => o.ano === anoLegenda && o.cargo === cargo))) {
-              const inicial = proximasOpcoes.find((o) => o.ano === 2022 && o.cargo === "Deputado Federal") || proximasOpcoes[0];
-              setAnoLegenda(inicial?.ano ?? null); setCargo(inicial?.cargo ?? "");
-            }
-            setMostrarMock(!mostrarMock); setPartido("");
-          }}>{mostrarMock ? "Voltar aos dados reais" : "Usar dados de exemplo"}</button>}
+            <label class="global-party-filter"><span>Partido</span><select value={partido} onChange={(e) => setPartido((e.target as HTMLSelectElement).value)}><option value="">Todos</option>{partidos.map(([id, nome]) => <option value={id}>{nome}</option>)}</select></label><label>Município<select value={mun ?? ""} onChange={(e) => { const id = (e.target as HTMLSelectElement).value; if (id) selecionarMunicipio(ufPorMunicipio[id], id); else setMun(null); }}><option value="">Todos</option>{lista.slice().sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")).map((item) => <option key={item.id} value={item.id}>{item.nome}{!uf ? ` (${ufPorMunicipio[item.id]})` : ""}</option>)}</select></label></>}
           <button class="clear-filters" onClick={() => {
-            selecionarUf(null); setPartido(""); setTodosAnosLegenda(false);
+            selecionarUf(null); setPartido(""); setTodosAnosLegenda(false); setFaixaLegendaSelecionada(null);
             setAno(anos[anos.length - 1] ?? null);
             const inicial = opcoesAtivas.find((o) => o.ano === 2022 && o.cargo === "Deputado Federal") || opcoesAtivas[0];
             setAnoLegenda(inicial?.ano ?? null); setCargo(inicial?.cargo ?? "");
@@ -316,8 +356,8 @@ export function App() {
       {analise === "legenda" && mostrarMock && <div class="mock-data-banner" role="status">Prévia com dados simulados — os indicadores e gráficos usam o arquivo de mock, não resultados do TSE.</div>}
       <section class={`dash-kpis ${analise === "legenda" ? "three-kpis" : ""}`} aria-label="Resumo eleitoral">
         {analise === "legenda" ? <>
-          <article><span>Votos de legenda</span><strong>{dadosProntosLegenda && linhasFonte.length ? fmt(totalLegenda) : "—"}</strong><small>{todosAnosLegenda ? periodoLegenda : mun ? "Neste município" : uf ? "Neste estado" : "Nas UFs disponíveis"}</small><i class="kpi-line pink" /></article>
-          <article><span>Participação no recorte</span><strong>{dadosProntosLegenda && linhasFonte.length ? fmt(percentualLegenda, 1, "%") : "—"}</strong><small>{mun && participacaoEstado !== null && percentualLegenda !== null ? `${nomeUf}: ${fmt(participacaoEstado, 1, "%")} · município ${percentualLegenda > participacaoEstado ? "acima" : percentualLegenda < participacaoEstado ? "abaixo" : "igual"}` : "Entre votos para partidos ou candidatos"}</small><i class="kpi-line violet" /></article>
+          <article><span>Votos de legenda</span><strong>{dadosProntosLegenda && linhasFonte.length ? fmt(totalLegenda) : "—"}</strong><small>{periodoLegenda} · {mun ? "município" : uf ? "estado" : "UFs disponíveis"}</small><i class="kpi-line pink" /></article>
+          <article><span title="Votos de legenda ÷ (votos de legenda + votos nominais) no mesmo recorte e período.">Participação dos votos de legenda ⓘ</span><strong>{dadosProntosLegenda && linhasFonte.length ? fmt(percentualLegenda, 1, "%") : "—"}</strong><small>{periodoLegenda} · legenda / (legenda + nominais)</small><i class="kpi-line violet" /></article>
           <article><span>Votos nominais</span><strong>{dadosProntosLegenda && linhasFonte.length ? fmt(totalNominais) : "—"}</strong><small>{todosAnosLegenda ? anosCargo.length > 1 ? "Mesmo cargo · soma dos anos" : `Mesmo cargo · ${periodoLegenda}` : "Mesmo cargo e ano"}</small><i class="kpi-line cyan" /></article>
         </> : <>
           <article><span>Eleitorado</span><strong>{uf && valido ? fmt(mun ? sel?.eleitorado : totalEleitorado) : "—"}</strong><small>{mun ? nomes[mun] : uf || "Selecione um estado"}</small><i class="kpi-line cyan" /></article>
@@ -327,16 +367,17 @@ export function App() {
         </>}
       </section>
       <Mapa ufs={ufs} muns={uf ? geoMun[uf] ?? [] : []} uf={uf} siglas={siglas} cobertos={new Set(COBERTOS)}
-        mun={mun} cor={cor} corUf={analise === "legenda" ? corUf : undefined} descricaoUf={analise === "legenda" ? descricaoUf : undefined} descricaoMun={analise === "legenda" ? descricaoMun : undefined} nomes={nomes} municipiosBusca={municipiosBusca} onUf={selecionarUf} onMun={setMun} onMunicipioBusca={selecionarMunicipio} legendaMapa={legendaMapa} />
-      {!(analise === "legenda" && mun) && <aside>
+        mun={mun} cor={cor} corUf={analise === "legenda" ? corUf : undefined} descricaoUf={analise === "legenda" ? descricaoUf : undefined} descricaoMun={analise === "legenda" ? descricaoMun : undefined} nomes={nomes} municipiosBusca={municipiosBusca} onUf={selecionarUf} onMun={setMun} onMunicipioBusca={selecionarMunicipio} legendaMapa={legendaMapa} controlesMapa={controlesMapa} />
+      {!(analise === "legenda" && mun && visaoMapa === "intensidade") && <aside>
         {erroGeo && <p class="aviso erro">{erroGeo}</p>}
         {analise === "abstencao" && status === "api" && <p class="aviso erro">API indisponível: mapa sem indicadores.</p>}
         {analise === "legenda" && uf && !todosAnosLegenda && !mostrarMock && statusLegenda === "erro" && <p class="aviso erro">Votos por legenda indisponíveis. Verifique a API e o banco.</p>}
         {analise === "legenda" && !uf && !todosAnosLegenda && !mostrarMock && statusBrasil === "erro" && <p class="aviso erro">Não foi possível consultar os dados das UFs. Verifique a API e o banco.</p>}
         {analise === "legenda" && todosAnosLegenda && !mostrarMock && chaveHistorico === chaveHistoricoAtual && statusHistorico === "erro" && <p class="aviso erro">Não foi possível consultar todos os anos disponíveis.</p>}
         {!uf && analise !== "legenda" && <div class="empty-selection"><span>EXPLORAR O MAPA</span><h2>Selecione um lugar</h2><p>Busque um município no mapa, clique em um estado ou use o filtro acima.</p></div>}
-        {!uf && analise === "legenda" && estadoLinhas.length > 0 && <div class="aside-state-compare"><h3>Participação por UF</h3><p class="aside-state-total"><span>Votos de legenda · {percentuaisUf.length} UFs</span><strong>{percentuaisUf.length ? fmt(totalLegendaUfs) : "—"}</strong></p>{estadoLinhas.map((item) => <button key={item.uf} onClick={() => selecionarUf(item.uf)} aria-label={`Ver ${item.uf}: ${item.temDados ? `${fmt(item.percentual, 1, "%")}, ${fmt(item.legenda)} votos de legenda` : "sem dados"}`}><span><i class="state-dot" style={{ background: CORES_UF[item.uf] }} />{item.uf}</span><i class="state-track"><b style={{ width: `${item.temDados ? larguraComparativaUf(item.percentual) : 0}%`, background: CORES_UF[item.uf] }} /></i><span class="aside-state-values"><strong>{item.temDados ? fmt(item.percentual, 1, "%") : "—"}</strong><small>{item.temDados ? `${fmt(item.legenda)} votos` : "Sem dados"}</small></span></button>)}<small>Barras relativas à faixa observada · cores identificam as UFs.</small></div>}
-        {analise === "legenda" && uf && <section class="aside-context-insights" aria-label="Comparação dos municípios"><h2>Comparação dos municípios</h2>
+        {analise === "legenda" && visaoMapa === "vencedor" && <section class="aside-party-coverage" aria-label="Cores dos partidos"><h2>Cores dos partidos</h2><p>{mun ? `${nomes[mun] || mun} · ${uf}` : uf ? `${nomeUf} · ${uf}` : "UFs disponíveis"} · {cargo} · {periodoLegenda}</p>{dadosProntosLegenda ? partidosComRegistroMapa.length ? <><strong>{partidosComRegistroMapa.length} partidos com votos de legenda</strong><ul>{partidosComRegistroMapa.map((nome) => <li key={nome}><i class="party-dot" style={{ background: corPartido(nome) }} /> {nome}</li>)}</ul></> : <p>Sem registros neste recorte.</p> : <p>Carregando partidos…</p>}<small><i class="party-dot" style={{ background: CINZA_SEM_REGISTRO }} /> sem registro</small></section>}
+        {!uf && analise === "legenda" && visaoMapa === "intensidade" && estadoLinhas.length > 0 && <div class="aside-state-compare"><h3>Participação por UF</h3><p class="aside-state-total"><span>Votos de legenda · {percentuaisUf.length} UFs</span><strong>{percentuaisUf.length ? fmt(totalLegendaUfs) : "—"}</strong></p>{estadoLinhas.map((item) => <button key={item.uf} onClick={() => selecionarUf(item.uf)} aria-label={`Ver ${item.uf}: ${item.temDados ? `${fmt(item.percentual, 1, "%")}, ${fmt(item.legenda)} votos de legenda` : "sem dados"}`}><span><i class="state-dot" style={{ background: CORES_UF[item.uf] }} />{item.uf}</span><i class="state-track"><b style={{ width: `${item.temDados ? larguraComparativaUf(item.percentual) : 0}%`, background: CORES_UF[item.uf] }} /></i><span class="aside-state-values"><strong>{item.temDados ? fmt(item.percentual, 1, "%") : "—"}</strong><small>{item.temDados ? `${fmt(item.legenda)} votos` : "Sem dados"}</small></span></button>)}<small>Barras relativas à faixa observada · cores identificam as UFs.</small></div>}
+        {analise === "legenda" && visaoMapa === "intensidade" && uf && <section class="aside-context-insights" aria-label="Comparação dos municípios"><h2>Comparação dos municípios</h2>
           {dadosProntosLegenda && municipiosPorParticipacao.length ? <>
             <div class="insight-above"><span>Municípios acima do percentual estadual</span><strong>{acimaMediaEstado} <small>de {municipiosPorParticipacao.length}</small></strong><i role="img" aria-label={`${acimaMediaEstado} de ${municipiosPorParticipacao.length} municípios acima do percentual estadual`}><b style={{ width: `${100 * acimaMediaEstado / municipiosPorParticipacao.length}%` }} /></i><small>Média estadual: {fmt(participacaoEstado, 1, "%")} dos votos foram de legenda.</small></div>
             <div class="insight-extremes"><h3>Maior participação</h3>{municipiosPorParticipacao.slice(0, 2).map((item) => <button type="button" key={item.id} onClick={() => setMun(item.id)}><span>{nomes[item.id] || item.id}</span><strong>{fmt(item.percentual, 1, "%")}</strong></button>)}
@@ -357,13 +398,13 @@ export function App() {
                 <dt>IDHM (2010)</dt><dd>{fmt(sel.idhm, 3)}</dd></dl>}</section>}
         </>}
       </aside>}
-      <section class={`dash-charts ${analise === "legenda" && partido ? "single-chart" : ""}`} aria-label="Análises municipais">
-        {!(analise === "legenda" && partido) && <article class="dash-chart-card"><div class="dash-card-heading"><div><h2>{analise === "legenda" ? "Votos por partido" : "Taxas mais altas"}</h2><p>{analise === "legenda" ? `${rankingPartidos.length} partidos com registros · role para ver a lista completa` : "Municípios do recorte selecionado"}</p></div>{analise === "legenda" && rankingPartidos.length > 0 && <input class="busca-ranking-partido" type="search" value={buscaRankingPartido} onInput={(e) => setBuscaRankingPartido((e.target as HTMLInputElement).value)} placeholder="Buscar partido" aria-label="Buscar partido nesta lista" />}</div>
-          {analise === "legenda" ? rankingPartidos.length ? partidosVisiveis.length ? <div class="dash-ranking dash-ranking-partidos" tabIndex={0} aria-label="Partidos encontrados na lista">{partidosVisiveis.map((r) => <div class="dash-rank-row" key={r.id}><span><i class="party-dot" style={{ background: corPartido(r.id) }} />{r.nome}</span><i><b style={{ width: `${100 * r.votos / Math.max(1, rankingPartidos[0].votos)}%`, background: corPartido(r.id) }} /></i><strong>{fmt(r.votos)}</strong></div>)}</div> : <div class="dash-empty">Nenhum partido encontrado nesta busca.</div> : <div class="dash-empty">Selecione um estado com votos para ver os partidos.</div>
-            : ranking.length ? <div class="dash-ranking">{ranking.map(([id, r]) => <button key={id} onClick={() => setMun(id)}><span>{nomes[id] || id}</span><i><b style={{ width: `${Math.min(100, Number(r.abstencao_pct) * 2)}%` }} /></i><strong>{fmt(r.abstencao_pct, 1, "%")}</strong></button>)}</div> : <div class="dash-empty">Selecione um estado com dados para ver o ranking.</div>}</article>}
-        <article class="dash-chart-card"><h2>{analise === "legenda" ? "Distribuição dos votos de legenda" : "Distribuição da abstenção"}</h2><p>Quantidade de municípios por faixa percentual</p>{(analise === "legenda" ? percentuaisMunicipios.length : valores.length) ? analise === "legenda" ? <div class="dash-distribution-horizontal">{faixasAtivas.map((f) => <div class="dash-distribution-row" key={f.rotulo}><span>{f.rotulo}</span><i><b style={{ width: `${100 * f.valor / maxFaixaAtiva}%` }} /></i><strong>{fmt(f.valor)}</strong></div>)}</div> : <div class="dash-distribution">{faixasAtivas.map((f) => <div key={f.rotulo}><span>{f.valor}</span><i style={{ height: `${Math.max(3, 100 * f.valor / maxFaixaAtiva)}%` }} /><small>{f.rotulo}</small></div>)}</div> : <div class="dash-empty">Os dados aparecem após selecionar um estado.</div>}</article>
+      <section class="dash-charts" aria-label="Análises municipais">
+        <article class="dash-chart-card"><div class="dash-card-heading"><div><h2>{analise === "legenda" ? "Votos por partido" : "Taxas mais altas"}</h2><p>{analise === "legenda" ? `${mun ? nomes[mun] || mun : uf ? nomeUf : "Seis UFs disponíveis"} · ${cargo} · ${periodoLegenda} · ${rankingPartidos.length} partidos` : "Municípios do recorte selecionado"}</p></div>{analise === "legenda" && rankingPartidos.length > 0 && <div class="party-ranking-controls"><input class="busca-ranking-partido" type="search" value={buscaRankingPartido} onInput={(e) => setBuscaRankingPartido((e.target as HTMLInputElement).value)} placeholder="Buscar partido" aria-label="Buscar partido nesta lista" /><select aria-label="Ordenar partidos" value={ordemPartidos} onChange={(e) => setOrdemPartidos((e.target as HTMLSelectElement).value as "votos" | "participacao")}><option value="votos">Votos absolutos</option><option value="participacao">Participação (%)</option></select></div>}</div>
+          {analise === "legenda" ? rankingPartidos.length ? partidosVisiveis.length ? <><div class="dash-ranking dash-ranking-partidos" tabIndex={0} aria-label="Partidos encontrados na lista">{partidosVisiveis.map((r) => <div class={`dash-rank-row ${partido === r.id ? "selecionado" : ""}`} key={r.id} title={`${r.nome}: ${fmt(r.votos)} votos de legenda · ${fmt(100 * r.votos / Math.max(1, totalLegenda), 1, "%")} do total`}><span><i class="party-dot" style={{ background: corPartido(r.nome) }} />{r.nome}</span><i><b style={{ width: `${100 * r.votos / Math.max(1, rankingPartidos[0].votos)}%`, background: corPartido(r.nome) }} /></i><strong>{fmt(r.votos)} <small>{fmt(100 * r.votos / Math.max(1, totalLegenda), 1, "%")}</small></strong></div>)}</div>{!termoRankingPartido && rankingPartidos.length > 10 && <button type="button" class="legenda-show-more" onClick={() => setMostrarTodosPartidos(!mostrarTodosPartidos)}>{mostrarTodosPartidos ? "Mostrar 10 principais" : "Ver todos os partidos"}</button>}</> : <div class="dash-empty">Nenhum partido encontrado nesta busca.</div> : <div class="dash-empty">Selecione um estado com votos para ver os partidos.</div>
+            : ranking.length ? <div class="dash-ranking">{ranking.map(([id, r]) => <button key={id} onClick={() => setMun(id)}><span>{nomes[id] || id}</span><i><b style={{ width: `${Math.min(100, Number(r.abstencao_pct) * 2)}%` }} /></i><strong>{fmt(r.abstencao_pct, 1, "%")}</strong></button>)}</div> : <div class="dash-empty">Selecione um estado com dados para ver o ranking.</div>}</article>
+        <article class="dash-chart-card"><h2>{analise === "legenda" ? "Distribuição dos votos de legenda" : "Distribuição da abstenção"}</h2><p>Quantidade de municípios por faixa percentual{analise === "legenda" && participacaoEstado !== null ? ` · referência estadual: ${fmt(participacaoEstado, 1, "%")}` : ""}</p>{(analise === "legenda" ? percentuaisDistribuicao.length : valores.length) ? analise === "legenda" ? <div class="dash-distribution-horizontal">{faixasLegenda.map((f) => <button type="button" aria-pressed={faixaLegendaSelecionada === f.inicio} class="dash-distribution-row" key={f.rotulo} onClick={() => setFaixaLegendaSelecionada(faixaLegendaSelecionada === f.inicio ? null : f.inicio)}><span>{f.rotulo}</span><i><b style={{ width: `${100 * f.valor / maxFaixaAtiva}%` }} /></i><strong>{fmt(f.valor)}</strong></button>)}</div> : <div class="dash-distribution">{faixasAtivas.map((f) => <div key={f.rotulo}><span>{f.valor}</span><i style={{ height: `${Math.max(3, 100 * f.valor / maxFaixaAtiva)}%` }} /><small>{f.rotulo}</small></div>)}</div> : <div class="dash-empty">Os dados aparecem após selecionar um estado.</div>}</article>
       </section>
-      {analise === "legenda" && <GraficosLegenda uf={uf} mun={mun} cargo={cargo} partido={partido} onPartido={setPartido} opcoes={opcoesAtivas} linhas={linhasAtivas} carregando={!dadosProntosLegenda} onMunicipio={selecionarMunicipio} ufPorMunicipio={ufPorMunicipio} ufsDisponiveis={COBERTOS} historicoMock={historicoMock} historicoExterno={historicoExterno} erroHistoricoExterno={todosAnosLegenda && chaveHistorico === chaveHistoricoAtual && statusHistorico === "erro"} />}
+      {analise === "legenda" && <GraficosLegenda uf={uf} mun={mun} cargo={cargo} partidoGlobal={partido} opcoes={opcoesAtivas} linhas={linhasAtivas} carregando={!dadosProntosLegenda} onMunicipio={selecionarMunicipio} ufPorMunicipio={ufPorMunicipio} ufsDisponiveis={COBERTOS} todosAnos={true} historicoMock={historicoMock} historicoExterno={historicoExterno} erroHistoricoExterno={chaveHistorico === chaveHistoricoAtual && statusHistorico === "erro"} faixaSelecionada={faixaLegendaSelecionada} />}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 """API somente leitura do mapa de apuração (FastAPI + DuckDB/MotherDuck).
 
 Rodar na raiz do repositório: uv run uvicorn frontend.main:app --port 8000
-Variáveis: BDR_BANCO (banco DER local ou md:pipeline_bdr_der_completo),
+Variáveis: BDR_BANCO (banco DER local ou md:pipeline_bdr_der_completo_v3),
 MOTHERDUCK_TOKEN (somente no servidor), BDR_CORS (origens separadas por vírgula).
 """
 import logging
@@ -25,14 +25,13 @@ def _obter_banco_padrao():
     if env_banco:
         return env_banco if env_banco.startswith("md:") or env_banco == ":memory:" else str((RAIZ / env_banco).resolve())
     for caminho in (
-        "dados_bdr/saida/pipeline_bdr_der_completo_v2.duckdb",
-        "dados_bdr/saida/pipeline_bdr_der_completo.duckdb",
-        "pipeline_bdr_der/dados_bdr/saida/pipeline_bdr_der.duckdb",
+        "dados_bdr/saida/pipeline_bdr_der_completo_v3.duckdb",
+        "pipeline_bdr_der/dados_bdr/saida/pipeline_bdr_der_completo_v3.duckdb",
     ):
         arquivo = RAIZ / caminho
         if os.path.isfile(arquivo):
             return str(arquivo)
-    return "md:pipeline_bdr_der_completo_v2"
+    return "md:pipeline_bdr_der_completo_v3"
 
 BANCO = _obter_banco_padrao()
 UFS = {"CE", "MA", "MS", "RJ", "RN", "RS"}
@@ -187,7 +186,7 @@ def votos_legenda(uf: str, ano: int, cargo: str):
         JOIN "Eleicao" e ON e.id_eleicao = v.id_eleicao
         JOIN "Municipio" m ON m.id_municipio = v.id_municipio
         JOIN "Partido" pa ON pa.id_partido = v.id_partido
-        WHERE m.uf = ? AND e.ano = ? AND e.cargo = ? AND v.turno = 1
+        WHERE m.uf = ? AND e.ano = ? AND e.cargo = ? AND v.turno = 1 AND e.turno = 1
         GROUP BY m.id_municipio, m.nome, pa.id_partido, pa.sigla
         ORDER BY m.nome, pa.sigla
         ''', [uf, ano, cargo])

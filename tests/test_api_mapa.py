@@ -21,11 +21,15 @@ class ApiMapaTest(unittest.TestCase):
 
     def test_banco_online_quando_nao_ha_arquivo_local(self):
         with patch.dict("os.environ", {"BDR_BANCO": ""}), patch("frontend.main.os.path.isfile", return_value=False):
-            self.assertEqual(main._obter_banco_padrao(), "md:pipeline_bdr_der_completo_v2")
+            self.assertEqual(main._obter_banco_padrao(), "md:pipeline_bdr_der_completo_v3")
 
-    def test_banco_local_existente_tem_preferencia(self):
-        with patch.dict("os.environ", {"BDR_BANCO": ""}), patch("frontend.main.os.path.isfile", side_effect=[False, False, True]):
-            self.assertEqual(main._obter_banco_padrao(), str(main.RAIZ / "pipeline_bdr_der/dados_bdr/saida/pipeline_bdr_der.duckdb"))
+    def test_segunda_localizacao_v3_tem_preferencia(self):
+        with patch.dict("os.environ", {"BDR_BANCO": ""}), patch("frontend.main.os.path.isfile", side_effect=[False, True]):
+            self.assertEqual(main._obter_banco_padrao(), str(main.RAIZ / "pipeline_bdr_der/dados_bdr/saida/pipeline_bdr_der_completo_v3.duckdb"))
+
+    def test_banco_local_v3_tem_preferencia(self):
+        with patch.dict("os.environ", {"BDR_BANCO": ""}), patch("frontend.main.os.path.isfile", side_effect=[True]):
+            self.assertEqual(main._obter_banco_padrao(), str(main.RAIZ / "dados_bdr/saida/pipeline_bdr_der_completo_v3.duckdb"))
 
     def verificar_indicadores(self, motherduck):
         con = duckdb.connect(":memory:")
@@ -67,7 +71,9 @@ class ApiMapaTest(unittest.TestCase):
             con.execute("INSERT INTO \"Municipio\" VALUES ('2100055', '00001', 'Açailândia', 'MA', 'Nordeste')")
             con.execute("INSERT INTO \"Partido\" VALUES ('p1', 'PL', 'Partido Liberal', 22)")
             con.execute("INSERT INTO \"Eleicao\" VALUES ('e1', 2022, 'Geral', 1, 'Deputado Federal', NULL)")
+            con.execute("INSERT INTO \"Eleicao\" VALUES ('e2', 2022, 'Geral', 2, 'Deputado Federal', NULL)")
             con.execute("INSERT INTO \"Votos_Partido_Municipio\" VALUES ('v1', 'e1', 'p1', '2100055', 1, 80, 20)")
+            con.execute("INSERT INTO \"Votos_Partido_Municipio\" VALUES ('v2', 'e2', 'p1', '2100055', 1, 900, 100)")
             with patch.multiple(main, _con=con, BANCO=":memory:"):
                 self.assertIn({"ano": 2022, "cargo": "Deputado Federal"}, main.opcoes_legenda()["opcoes"])
                 linhas = main.votos_legenda("MA", 2022, "Deputado Federal")["linhas"]
