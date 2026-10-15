@@ -48,7 +48,7 @@ def publicar(local):
     if not token:
         raise RuntimeError("Configure MOTHERDUCK_TOKEN no ambiente antes da publicação")
     os.environ["motherduck_token"] = token
-    banco = "pipeline_bdr_der_completo_v2"
+    banco = "pipeline_bdr_der_completo"
     con = duckdb.connect("md:")
     try:
         caminho = str(Path(local).resolve()).replace("'", "''")
@@ -98,7 +98,7 @@ def main():
         if not args.saida.is_file():
             ap.error(f"Banco local não encontrado: {args.saida}")
         publicar(args.saida)
-        print("Publicado em pipeline_bdr_der_completo_v2")
+        print("Publicado em pipeline_bdr_der_completo")
     if not args.executar_completo and not args.publicar_teste:
         ap.error("Informe --executar-completo ou --publicar-teste")
 
