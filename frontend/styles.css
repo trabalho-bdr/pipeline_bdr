@@ -124,6 +124,13 @@ body { background:var(--bg); color:#f1f2f9; }
 .legenda-donut strong { font-size:22px; font-weight:650; }.legenda-donut small { color:#b8c2db; font-size:11px; }
 .legenda-proporcao-valores { display:grid; gap:15px; }.legenda-proporcao-valores>div { display:flex; align-items:start; gap:8px; color:#b8c2db; font-size:11px; }.legenda-proporcao-valores i { width:10px; height:10px; margin-top:3px; border-radius:50%; flex:none; }.ponto-legenda { background:#ed4ca2; }.ponto-nominal { background:#66728e; }.legenda-proporcao-valores span { display:grid; gap:3px; }.legenda-proporcao-valores strong { color:#f4f5fb; font-size:17px; font-weight:600; }
 .legenda-trend { display:block; width:100%; height:190px; }
+.legenda-year-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:10px 0 2px; }
+.legenda-year-mode { display:inline-flex; padding:2px; border:1px solid #465270; border-radius:6px; background:#1b2235; }
+.legenda-year-mode button { padding:5px 9px; border:0; border-radius:4px; background:transparent; color:#bdc8e2; font-size:11px; cursor:pointer; }
+.legenda-year-mode button[aria-pressed="true"] { background:#45416b; color:#fff; }
+.legenda-year-choices { display:flex; flex-wrap:wrap; gap:6px 10px; }
+.legenda-year-choices label { display:inline-flex; align-items:center; gap:4px; color:#d4dbee; font-size:11px; cursor:pointer; }
+.legenda-year-choices input { accent-color:#f03d94; }
 .legenda-trend-selected-year { stroke:#ffffff80; stroke-width:1; stroke-dasharray:3 4; }
 .legenda-trend .selected-year { fill:#fff; font-weight:700; }
 .legenda-trend-series { display:flex; flex-wrap:wrap; gap:7px 12px; max-height:78px; overflow:auto; margin:0 0 8px; color:#cbd4e9; font-size:11px; }

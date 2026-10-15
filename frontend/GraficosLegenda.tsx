@@ -21,6 +21,8 @@ const percentual = (valor: number) => `${valor.toLocaleString("pt-BR", { maximum
 export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, carregando, onMunicipio, ufPorMunicipio, ufsDisponiveis, historicoMock }: Props) {
   const [historico, setHistorico] = useState<HistoricoAno[]>([]);
   const [erroHistorico, setErroHistorico] = useState(false);
+  const [anosEscolhidos, setAnosEscolhidos] = useState<number[] | null>(null);
+  useEffect(() => setAnosEscolhidos(null), [cargo, opcoes]);
   useEffect(() => {
     setHistorico([]); setErroHistorico(false);
     if (!cargo || historicoMock || carregando) return;
@@ -52,7 +54,8 @@ export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, 
     acc.set(item.id_municipio, atual); return acc;
   }, new Map<string, { id: string; nome: string; legenda: number; nominais: number }>()).values()]
     .sort((a, b) => b.legenda - a.legenda).slice(0, 10);
-  const historicoAtivo = [...(historicoMock ?? historico)].sort((a, b) => a.ano - b.ano);
+  const anosDisponiveis = [...new Set(opcoes.filter((item) => item.cargo === cargo).map((item) => item.ano))].sort((a, b) => a - b);
+  const historicoAtivo = [...(historicoMock ?? historico)].filter((item) => anosEscolhidos === null || anosEscolhidos.includes(item.ano)).sort((a, b) => a.ano - b.ano);
   const partidosHistoricos = [...new Map(historicoAtivo.flatMap((item) => item.partidos.map((p) => [p.id, p.nome] as const))).entries()]
     .filter(([id]) => !partido || id === partido).sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
   const max = Math.max(1, ...historicoAtivo.flatMap((item) => item.partidos.filter((p) => !partido || p.id === partido).map((p) => p.legenda)));
@@ -71,7 +74,14 @@ export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, 
         <div class="legenda-proporcao-valores"><div><i class="ponto-legenda" /><span>Legenda<strong>{numero(votosLegenda)}</strong></span></div><div><i class="ponto-nominal" /><span>Nominal<strong>{numero(votosNominais)}</strong></span></div></div>
       </div>}
     </article>
-    <article class="dash-chart-card"><h2>Evolução dos votos de legenda</h2><p>{cargo || "Cargo"} · {mun ? "município" : uf || "seis UFs disponíveis"}{partido ? " · partido selecionado no filtro global" : " · todos os partidos"} · todos os anos disponíveis</p>
+    <article class="dash-chart-card"><h2>Evolução dos votos de legenda</h2><p>{cargo || "Cargo"} · {mun ? "município" : uf || "seis UFs disponíveis"}{partido ? " · partido selecionado no filtro global" : " · todos os partidos"}</p>
+      {!!anosDisponiveis.length && <div class="legenda-year-controls">
+        <div class="legenda-year-mode" role="group" aria-label="Anos da evolução">
+          <button type="button" aria-pressed={anosEscolhidos === null} onClick={() => setAnosEscolhidos(null)}>Todos os anos</button>
+          <button type="button" aria-pressed={anosEscolhidos !== null} onClick={() => setAnosEscolhidos(anosEscolhidos ?? anosDisponiveis)}>Escolher anos</button>
+        </div>
+        {anosEscolhidos !== null && <div class="legenda-year-choices" aria-label="Eleições incluídas no gráfico">{anosDisponiveis.map((anoOpcao) => <label key={anoOpcao}><input type="checkbox" checked={anosEscolhidos.includes(anoOpcao)} disabled={anosEscolhidos.length === 1 && anosEscolhidos.includes(anoOpcao)} onChange={() => setAnosEscolhidos((atual) => atual === null ? anosDisponiveis : atual.includes(anoOpcao) ? atual.filter((item) => item !== anoOpcao) : [...atual, anoOpcao])} />{anoOpcao}</label>)}</div>}
+      </div>}
       {erroHistorico ? <div class="dash-empty">Não foi possível carregar a série histórica.</div> : !historicoAtivo.length ? <div class="dash-empty">Carregando eleições disponíveis…</div> : !totalPontos ? <div class="dash-empty">Sem registros para este recorte nos anos disponíveis.</div> : <>
         <svg class="legenda-trend" viewBox="0 0 520 205" role="img" aria-label={`Votos de legenda por partido de ${historicoAtivo[0].ano} a ${historicoAtivo[historicoAtivo.length - 1].ano}; anos sem registros não são ligados`}>
           {[50, 107, 165].map((y) => <line key={y} x1="42" x2="480" y1={y} y2={y} class="mock-grid-line" />)}
@@ -92,7 +102,7 @@ export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, 
         </svg>
         <div class="legenda-trend-series" aria-label="Cores das séries">{partidosHistoricos.map(([id, nome]) => <span key={id}><i style={{ background: corPartido(id) }} />{nome}</span>)}</div>
       </>}
-      {!!historicoAtivo.length && <p class="legenda-trend-nota">Eleições disponíveis para o mesmo cargo: {historicoAtivo.map((item) => item.ano).join(", ")}. O ano do painel ({ano ?? "—"}) está destacado. {historicoAtivo.length === 1 ? "Há apenas uma eleição disponível; não há tendência temporal." : "Cada partido aparece apenas nos anos com registro; lacunas não são zero."}</p>}
+      {!!historicoAtivo.length && <p class="legenda-trend-nota">Eleições exibidas para o mesmo cargo: {historicoAtivo.map((item) => item.ano).join(", ")}. {ano !== null && historicoAtivo.some((item) => item.ano === ano) ? `O ano do painel (${ano}) está destacado.` : `O ano do painel (${ano ?? "—"}) não está entre os anos exibidos.`} {historicoAtivo.length === 1 ? "Há apenas uma eleição exibida; não há tendência temporal." : "Cada partido aparece apenas nos anos com registro; lacunas não são zero."}</p>}
     </article>
     <article class="dash-chart-card legenda-municipios"><h2>Municípios com mais votos de legenda</h2><p>Selecione uma linha para localizar o município no mapa</p>
       {semDados ? <div class="dash-empty">Os municípios aparecem quando os dados do recorte carregam.</div> : <div class="legenda-municipios-tabela"><div class="legenda-municipios-cabecalho"><span>Município</span><span>Votos</span><span>% legenda</span></div>{municipios.map((item) => <button key={item.id} class={mun === item.id ? "selecionado" : ""} onClick={() => { const sigla = ufPorMunicipio[item.id] || uf; if (sigla) onMunicipio(sigla, item.id); }}><span class="municipio-tabela-nome"><span>{item.nome}</span>{!uf && ufPorMunicipio[item.id] && <small class="uf-badge" style={{ color: CORES_UF[ufPorMunicipio[item.id]], borderColor: CORES_UF[ufPorMunicipio[item.id]] }}>{ufPorMunicipio[item.id]}</small>}</span><strong>{numero(item.legenda)}</strong><span>{percentual(100 * item.legenda / Math.max(1, item.legenda + item.nominais))}</span></button>)}</div>}
