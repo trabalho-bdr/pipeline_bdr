@@ -106,11 +106,16 @@ class TestQuestao10(unittest.TestCase):
                 ('11', 'Prefeito', 'MUNICIPAL', 'EXECUTIVO', 2),
                 ('6', 'Deputado Federal', 'FEDERAL', 'LEGISLATIVO', 4);
                 
-            INSERT INTO candidato VALUES 
+            INSERT INTO candidato (id_candidato, nome, nome_urna, data_nascimento, genero,
+                                   grau_instrucao, ocupacao, uf_nascimento, metodo_identidade,
+                                   identidade_ambigua) VALUES 
                 ('cand_1', 'MARIA DA SILVA', 'MARIA', '1980-01-01', 'FEMININO', 'SUPERIOR', 'ADVOGADO', 'RN', 'CPF', FALSE),
                 ('cand_2', 'JOAO DOS SANTOS', 'JOAO', '1975-05-10', 'MASCULINO', 'SUPERIOR', 'MÉDICO', 'RJ', 'CPF', FALSE);
                 
-            INSERT INTO candidatura VALUES 
+            INSERT INTO candidatura (id_candidatura, id_candidato, ano, cd_eleicao, turno,
+                                     cd_cargo, numero_partido, sigla_partido, uf,
+                                     cod_tse_municipio, numero_candidato, situacao_registro,
+                                     reeleicao) VALUES 
                 ('cand1_2020', 'cand_1', 2020, '426', 1, '13', 13, 'PT', 'RN', '17612', 13123, 'DEFERIDO', FALSE),
                 ('cand1_2024', 'cand_1', 2024, '619', 1, '11', 40, 'PSB', 'RN', '17612', 40, 'DEFERIDO', FALSE),
                 ('cand2_2022', 'cand_2', 2022, '545', 1, '6', 22, 'PL', 'RJ', NULL, 2222, 'DEFERIDO', FALSE);
