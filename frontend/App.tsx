@@ -5,6 +5,7 @@ import { GraficosLegenda } from "./GraficosLegenda";
 import { Feat, Mapa } from "./Mapa";
 import { gerarLinhasMockLegenda, opcoesMockLegenda } from "./mockLegenda";
 import { CORES_UF, corPartido } from "./coresEleitorais";
+import { PainelPublicidade } from "./PainelPublicidade";
 
 type Cat = { ufs: { cod: string; sigla: string; nome: string }[]; municipios: Record<string, { id: string; nome: string }[]> };
 type Reg = Record<string, number | string | null>;
@@ -28,7 +29,7 @@ const fmt = (v: unknown, d = 0, suf = "") =>
 
 export function App() {
   const [visao, setVisao] = useState<"mapa" | "painel">("mapa");
-  const [analise, setAnalise] = useState<"abstencao" | "legenda">("abstencao");
+  const [analise, setAnalise] = useState<"abstencao" | "legenda" | "publicidade">("abstencao");
   const [mostrarMock, setMostrarMock] = useState(false);
   const [cat, setCat] = useState<Cat | null>(null);
   const [ufs, setUfs] = useState<Feat[]>([]);
@@ -185,6 +186,8 @@ export function App() {
   const nomeUf = cat?.ufs.find((item) => item.sigla === uf)?.nome || uf || "Brasil";
   const contexto = [nomeUf, mun ? nomes[mun] || mun : null].filter(Boolean).join(" / ");
 
+  if (analise === "publicidade") return <PainelPublicidade onAnalise={setAnalise} ufInicial={uf} />;
+
   return (
     <div class={`layout ${visao === "painel" ? "layout-painel" : "layout-mapa"} ${analise === "legenda" ? "analysis-legenda" : "analysis-abstencao"} ${analise === "legenda" && mostrarMock ? "preview-mock" : ""}`}>
       <header class="app-header">
@@ -199,6 +202,7 @@ export function App() {
           <div class="analysis-switch" role="group" aria-label="Análise eleitoral">
             <button aria-pressed={analise === "abstencao"} onClick={() => setAnalise("abstencao")}>Abstenção</button>
             <button aria-pressed={analise === "legenda"} onClick={() => setAnalise("legenda")}>Votos por legenda</button>
+            <button aria-pressed={false} onClick={() => setAnalise("publicidade")}>Publicidade · Q9</button>
           </div>
           <label>Estado <select value={uf || ""} onChange={(e) => selecionarUf((e.target as HTMLSelectElement).value || null)}><option value="">Brasil</option>{COBERTOS.map((sigla) => <option value={sigla}>{cat?.ufs.find((item) => item.sigla === sigla)?.nome || sigla} ({sigla})</option>)}</select></label>
           <label>Ano <select value={anoAtivo ?? ""} onChange={(e) => {

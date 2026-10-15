@@ -43,10 +43,18 @@ export function Mapa(p: Props) {
   }, []);
 
   useEffect(() => {
+    const elemento = svg.current;
+    if (!elemento) return;
     const z = zoom<SVGSVGElement, unknown>().scaleExtent([1, 80])
-      .on("zoom", (e) => g.current!.setAttribute("transform", e.transform.toString()));
+      .on("zoom", (e) => g.current?.setAttribute("transform", e.transform.toString()));
     zb.current = z;
-    select(svg.current!).call(z);
+    const selecao = select(elemento);
+    selecao.call(z);
+    return () => {
+      selecao.interrupt().on(".zoom", null);
+      z.on("zoom", null);
+      zb.current = undefined;
+    };
   }, []);
 
   // A projeção é ajustada ao Brasil; UFs e municípios usam a mesma, então se alinham.

@@ -1,0 +1,203 @@
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { posicionarPalavras } from "./nuvemPublicidade";
+import "./publicidade.css";
+
+type Analise = "abstencao" | "legenda" | "publicidade";
+type Opcao = { ano: number; cargo: string; rotulo: string };
+type Categoria = { categoria: string; grupo: string; valor: number; participacao: number | null; candidaturas: number; registros: number; em_revisao: number };
+type Dados = {
+  ano: number; cargo: string; uf: string | null; criterio: string; grupos: Categoria[]; categorias: Categoria[];
+  resumo: { publicidade: number; total_campanha: number; indefinido: number; fora_publicidade: number;
+    excluido_criterio: number; em_revisao: number; registros: number; candidaturas: number;
+    sem_valor: number; ajustes_negativos: number; tipos: number; categorias: number };
+};
+type Filtros = { ano: number; cargo: string; uf: string; criterio: "sugeridas" | "explicitas" };
+const UFS = ["CE", "MA", "MS", "RJ", "RN", "RS"];
+const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const numero = (n: number) => n.toLocaleString("pt-BR");
+const percentual = (n: number | null) => n == null ? "—" : `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+const CORES = ["#f38bc1", "#c2adf1", "#f03d94", "#a4b7e6", "#dc76b3", "#9489d9"];
+const chave = (c: Categoria) => `${c.grupo}::${c.categoria}`;
+
+async function carregar<T>(url: string, signal: AbortSignal): Promise<T> {
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(typeof body?.detail === "string" ? body.detail : "Não foi possível consultar as despesas. Confira se a API está em execução.");
+  }
+  return response.json();
+}
+
+function Nuvem({ categorias, selecionada, onSelecionar }: {
+  categorias: Categoria[]; selecionada: string | null; onSelecionar: (categoria: Categoria) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [largura, setLargura] = useState(760);
+  const altura = largura < 520 ? 420 : 450;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => setLargura(Math.max(260, Math.round(entry.contentRect.width))));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const medir = useMemo(() => {
+    const ctx = document.createElement("canvas").getContext("2d");
+    return (texto: string, tamanho: number) => {
+      if (!ctx) return texto.length * tamanho * .56;
+      ctx.font = `650 ${tamanho}px system-ui`;
+      return ctx.measureText(texto).width;
+    };
+  }, []);
+  const palavras = useMemo(() => posicionarPalavras(categorias, largura, altura, medir), [categorias, largura, altura]);
+  return <div class="q9-cloud" ref={ref}>
+    <svg viewBox={`0 0 ${largura} ${altura}`} role="group" aria-label="Categorias de publicidade, dimensionadas pelo valor contratado">
+      {palavras.map((p, i) => <g key={`${p.grupo}:${p.categoria}`} transform={`translate(${p.x},${p.y})`}
+        role="button" tabIndex={0} class={`q9-word ${selecionada === `${p.grupo}::${p.categoria}` ? "is-selected" : ""}`}
+        aria-pressed={selecionada === `${p.grupo}::${p.categoria}`}
+        aria-label={`${p.categoria}: ${brl(p.valor)}`} onClick={() => onSelecionar(categorias.find((c) => c.categoria === p.categoria && c.grupo === p.grupo)!)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelecionar(categorias.find((c) => c.categoria === p.categoria && c.grupo === p.grupo)!); } }}>
+        <title>{p.categoria} · {brl(p.valor)}</title>
+        <rect x={-p.largura / 2} y={-p.altura / 2} width={p.largura} height={p.altura} rx={8} />
+        <text textAnchor="middle" dominantBaseline="central" fontSize={p.tamanho} fontWeight={650} fill={CORES[i % CORES.length]}>
+          {p.linhas.map((linha, j) => <tspan x={0} y={(j - (p.linhas.length - 1) / 2) * p.tamanho * 1.12}>{linha}</tspan>)}
+        </text>
+      </g>)}
+    </svg>
+    <div class="q9-cloud-caption"><span><i /> Maior palavra, maior investimento</span><span>{palavras.length} de {categorias.length} categorias</span></div>
+  </div>;
+}
+
+function exportar(dados: Dados) {
+  const linhas: (string | number)[][] = [["Ano", "Cargo", "UF", "Tipo de publicidade", "Valor contratado", "Participação na publicidade (%)", "Candidaturas", "Registros"]];
+  for (const g of dados.grupos) linhas.push([dados.ano, dados.cargo, dados.uf || "CE MA MS RJ RN RS", g.grupo,
+    g.valor.toFixed(2).replace(".", ","), g.participacao?.toFixed(4).replace(".", ",") || "", g.candidaturas, g.registros]);
+  const csv = "\uFEFF" + linhas.map((r) => r.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(";")).join("\r\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = `publicidade-${dados.ano}-${dados.cargo.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analise: Analise) => void; ufInicial?: string | null }) {
+  const [filtros, setFiltros] = useState<Filtros>({ ano: 2024, cargo: "PREFEITO", uf: ufInicial || "", criterio: "sugeridas" });
+  const [opcoes, setOpcoes] = useState<Opcao[]>([]);
+  const [dados, setDados] = useState<Dados | null>(null);
+  const [erro, setErro] = useState("");
+  const [erroOpcoes, setErroOpcoes] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [tentativa, setTentativa] = useState(0);
+  const [atualizacao, setAtualizacao] = useState(0);
+  const ultimaAtualizacao = useRef(0);
+  const [foco, setFoco] = useState<{ grupo: string; categoria?: string } | null>(null);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    setErroOpcoes("");
+    carregar<{ opcoes: Opcao[] }>("/api/q9/opcoes", ac.signal).then((r) => {
+      if (ac.signal.aborted) return;
+      setOpcoes(r.opcoes);
+      const preferida = r.opcoes.find((o) => o.ano === 2024 && o.cargo === "PREFEITO") || r.opcoes[0];
+      if (preferida) setFiltros((f) => ({ ...f, ano: preferida.ano, cargo: preferida.cargo }));
+      else { setCarregando(false); setErroOpcoes("Não há despesas disponíveis nos anos de 2018, 2020, 2022 e 2024."); }
+    }).catch((e) => { if (!ac.signal.aborted) { setErroOpcoes(e.message); setCarregando(false); } });
+    return () => ac.abort();
+  }, [tentativa]);
+
+  useEffect(() => {
+    if (!opcoes.some((o) => o.ano === filtros.ano && o.cargo === filtros.cargo)) return;
+    const ac = new AbortController();
+    setCarregando(true); setDados(null); setErro(""); setFoco(null);
+    const query = new URLSearchParams({ ano: String(filtros.ano), cargo: filtros.cargo, criterio: filtros.criterio });
+    if (filtros.uf) query.set("uf", filtros.uf);
+    if (atualizacao !== ultimaAtualizacao.current) query.set("atualizar", "true");
+    ultimaAtualizacao.current = atualizacao;
+    carregar<Dados>(`/api/q9/despesas?${query}`, ac.signal).then((r) => {
+      if (!ac.signal.aborted) { setDados(r); setCarregando(false); }
+    }).catch((e) => { if (!ac.signal.aborted) { setErro(e.message); setCarregando(false); } });
+    return () => ac.abort();
+  }, [opcoes, filtros, atualizacao]);
+
+  const resumo = dados?.resumo;
+  const selecionada = foco?.categoria ? dados?.categorias.find((c) => c.grupo === foco.grupo && c.categoria === foco.categoria) : null;
+  const destaque = selecionada || dados?.grupos.find((g) => g.grupo === foco?.grupo) || dados?.grupos[0];
+  const palavras = useMemo(() => (dados?.categorias || []).filter((c) => c.valor > 0 && (!foco || c.grupo === foco.grupo)), [dados, foco?.grupo]);
+  const cargoRotulo = opcoes.find((o) => o.ano === filtros.ano && o.cargo === filtros.cargo)?.rotulo || "Cargo";
+  const parcela = resumo && resumo.total_campanha > 0 ? 100 * resumo.publicidade / resumo.total_campanha : null;
+  const temDados = !!resumo?.registros;
+
+  return <div class="layout q9-page">
+    <header class="app-header">
+      <div class="app-header-main">
+        <div class="view-heading"><span class="view-kicker">ELEIÇÕES BRASIL / QUESTÃO 09</span><strong>Publicidade eleitoral</strong><span class="view-context">O investimento por trás das campanhas</span></div>
+        <span class="q9-periodo"><i /> 2018 — 2024</span>
+      </div>
+      <div class="app-filter-row">
+        <div class="analysis-switch" role="group" aria-label="Análise eleitoral">
+          <button aria-pressed={false} onClick={() => onAnalise("abstencao")}>Abstenção</button>
+          <button aria-pressed={false} onClick={() => onAnalise("legenda")}>Votos por legenda</button>
+          <button aria-pressed={true}>Publicidade · Q9</button>
+        </div>
+        <label>Ano da eleição<select aria-label="Ano da eleição" value={filtros.ano} disabled={!opcoes.length} onChange={(e) => {
+          const ano = Number(e.currentTarget.value);
+          setFiltros((f) => ({ ...f, ano, cargo: opcoes.some((o) => o.ano === ano && o.cargo === f.cargo) ? f.cargo : opcoes.find((o) => o.ano === ano)?.cargo || "" }));
+        }}>{[2024, 2022, 2020, 2018].map((ano) => <option value={ano} disabled={!opcoes.some((o) => o.ano === ano)}>{ano}</option>)}</select></label>
+        <label>Tipo de candidato · cargo<select aria-label="Cargo disputado" value={filtros.cargo} disabled={!opcoes.length} onChange={(e) => setFiltros((f) => ({ ...f, cargo: e.currentTarget.value }))}>
+          {opcoes.filter((o) => o.ano === filtros.ano).map((o) => <option value={o.cargo}>{o.rotulo}</option>)}
+        </select></label>
+        <label>Estado<select aria-label="Estado da candidatura" value={filtros.uf} onChange={(e) => setFiltros((f) => ({ ...f, uf: e.currentTarget.value }))}><option value="">Todas as 6 UFs</option>{UFS.map((uf) => <option value={uf}>{uf}</option>)}</select></label>
+        <button class="q9-refresh" disabled={carregando} onClick={() => erroOpcoes ? setTentativa((n) => n + 1) : setAtualizacao((n) => n + 1)} aria-label="Atualizar despesas">↻</button>
+      </div>
+    </header>
+
+    <main class="q9-content">
+      <div class="q9-intro"><div><span class="q9-eyebrow">GASTOS DE CAMPANHA</span><h1>Onde os candidatos<br />concentram seus gastos?</h1><p>Explore os tipos de publicidade e propaganda eleitoral por cargo e ano.</p></div>
+        <div class="q9-intro-actions"><span class="q9-context-chip">{cargoRotulo} <b>·</b> {filtros.ano} <b>·</b> {filtros.uf || "6 UFs"}</span><button class="q9-export" disabled={!temDados || carregando} onClick={() => dados && exportar(dados)}>↓ Baixar resumo</button></div>
+      </div>
+
+      {(erro || erroOpcoes) && <div class="q9-error" role="alert"><div><strong>Não foi possível carregar este recorte</strong><p>{erro || erroOpcoes}</p></div><button onClick={() => erroOpcoes ? setTentativa((n) => n + 1) : setAtualizacao((n) => n + 1)}>Tentar novamente</button></div>}
+
+      <section class="q9-kpis" aria-label="Investimento no recorte" aria-busy={carregando}>
+        <article class="q9-kpi q9-kpi-principal"><div><span class="q9-kpi-label">Publicidade identificada</span><span class="q9-kpi-icon">↗</span></div><strong>{carregando ? <i class="q9-skeleton" /> : resumo ? brl(resumo.publicidade) : "—"}</strong><p>Valor contratado nas categorias selecionadas</p></article>
+        <article class="q9-kpi"><div><span class="q9-kpi-label">Parcela das despesas de campanha</span><span class="q9-kpi-icon">◔</span></div><strong>{carregando ? <i class="q9-skeleton" /> : percentual(parcela)}</strong><p>{resumo ? `de ${brl(resumo.total_campanha)} contratados no recorte` : "Publicidade em relação às despesas do recorte"}</p></article>
+        <article class="q9-kpi"><div><span class="q9-kpi-label">Candidaturas com publicidade</span><span class="q9-kpi-icon">♧</span></div><strong>{carregando ? <i class="q9-skeleton" /> : resumo ? numero(resumo.candidaturas) : "—"}</strong><p>{resumo ? `${resumo.tipos} tipos de publicidade · ${numero(resumo.registros)} registros` : "Candidaturas distintas no recorte"}</p></article>
+      </section>
+
+      <div class="q9-exploration">
+        <section class="q9-card q9-cloud-card" aria-label="Nuvem de categorias de gastos">
+          <div class="q9-card-heading"><div><span class="q9-eyebrow">O PESO DE CADA CATEGORIA</span><h2>O que move a campanha</h2><p>{foco ? foco.grupo : "As palavras revelam onde está o investimento."}</p></div>{foco && <button class="q9-reset" onClick={() => setFoco(null)}>Ver todas ↗</button>}</div>
+          {carregando ? <div class="q9-cloud-loading" role="status"><div class="q9-orbita" /><strong>Organizando as categorias…</strong><span>Calculando os valores de {cargoRotulo.toLowerCase()} em {filtros.ano}.</span></div>
+            : palavras.length ? <Nuvem categorias={palavras} selecionada={selecionada ? chave(selecionada) : null} onSelecionar={(c) => setFoco({ grupo: c.grupo, categoria: c.categoria })} />
+            : <div class="q9-empty"><span>◌</span><h3>{erro || erroOpcoes ? "Aguardando os dados" : "Sem categorias para a nuvem"}</h3><p>{temDados ? "As categorias deste recorte não têm saldo positivo. Consulte os valores no ranking." : "Não há despesas identificadas como publicidade com estes filtros. Experimente outro ano, cargo ou estado."}</p></div>}
+        </section>
+
+        <section class="q9-card q9-spotlight" aria-live="polite">
+          <span class="q9-eyebrow">{foco ? "SEU RECORTE EM DESTAQUE" : "MAIOR CONCENTRAÇÃO"}</span>
+          <div class="q9-spotlight-symbol">↗</div>
+          <h2>{carregando ? "Lendo os investimentos…" : destaque ? selecionada?.categoria || destaque.grupo : "Nenhum tipo identificado"}</h2>
+          <strong class="q9-spotlight-value">{!carregando && destaque ? brl(destaque.valor) : "—"}</strong>
+          <p>{selecionada ? "contratados nesta categoria" : "contratados neste tipo de publicidade"}</p>
+          <div class="q9-share"><div class="q9-ring" style={{ background: `conic-gradient(#f03d94 ${Math.min(100, Math.max(0, destaque?.participacao || 0))}%, #343d58 0)` }}><span>{!carregando ? percentual(destaque?.participacao ?? null) : "—"}</span></div><p>do investimento<br /><strong>em publicidade identificada</strong></p></div>
+          <div class="q9-spotlight-bottom"><span>Candidaturas</span><strong>{!carregando && destaque ? numero(destaque.candidaturas) : "—"}</strong></div>
+          <small>Clique em uma palavra ou em um tipo abaixo para explorar o valor investido.</small>
+        </section>
+      </div>
+
+      <section class="q9-card q9-ranking" aria-label="Valores por tipo de publicidade">
+        <div class="q9-card-heading"><div><span class="q9-eyebrow">INVESTIMENTO EM PERSPECTIVA</span><h2>Como os gastos se distribuem</h2><p>Participação de cada tipo no valor contratado em publicidade.</p></div><span class="q9-count">{dados?.grupos.length || 0} tipos</span></div>
+        <div class="q9-rank-head"><span>Tipo de publicidade</span><span>Valor contratado</span><span>Participação</span></div>
+        {!carregando && dados?.grupos.length ? dados.grupos.map((g, i) => <button key={g.grupo} class={`q9-rank-row ${foco?.grupo === g.grupo ? "active" : ""}`} aria-pressed={foco?.grupo === g.grupo} onClick={() => setFoco(foco?.grupo === g.grupo && !foco.categoria ? null : { grupo: g.grupo })}>
+          <span class="q9-rank-name"><small>{String(i + 1).padStart(2, "0")}</small><span>{g.grupo}<i class="q9-track"><b style={{ width: `${Math.max(0, 100 * g.valor / Math.max(1, dados.grupos[0].valor))}%`, background: i === 0 ? "#f03d94" : "#8f80c2" }} /></i></span></span><strong>{brl(g.valor)}</strong><span>{percentual(g.participacao)}</span>
+        </button>) : <div class="q9-rank-placeholder">{carregando ? "Carregando valores…" : "Os valores por tipo aparecerão aqui quando houver despesas identificadas."}</div>}
+      </section>
+
+      <details class="q9-method"><summary>Como ler estes dados <span>Classificação, cobertura e valores</span></summary><div>
+        <p>As categorias são sugestões analíticas obtidas das descrições das despesas. Não são categorias oficiais do TSE. Valores contratados não significam valores já pagos.</p>
+        <label class="q9-strict"><input type="checkbox" checked={filtros.criterio === "explicitas"} onChange={(e) => setFiltros((f) => ({ ...f, criterio: e.currentTarget.checked ? "explicitas" : "sugeridas" }))} /><span>Mostrar apenas equivalências explícitas sem ambiguidade prevista no dicionário.<small>É um subconjunto conservador; não representa toda a publicidade da campanha.</small></span></label>
+        {resumo && <p><strong>{brl(resumo.em_revisao)}</strong> da publicidade exibida depende de classificação textual em revisão. Outros <strong>{brl(resumo.indefinido)}</strong> no recorte têm natureza de publicidade indefinida e ficam fora da nuvem e do ranking.{resumo.sem_valor > 0 && ` Há ${numero(resumo.sem_valor)} registros sem valor monetário válido, excluídos das somas.`}</p>}
+        <p>A nuvem mostra até 32 categorias com saldo positivo (18 em telas pequenas). Palavras maiores indicam maior valor; o ranking informa os números exatos. Ajustes negativos são preservados nas somas. Candidaturas são contadas de forma distinta, sem somar contagens entre categorias.</p>
+      </div></details>
+      <footer class="q9-footer"><span><i /> Recorte disponível: CE, MA, MS, RJ, RN e RS.</span><span>{cargoRotulo} · {filtros.ano} · {filtros.uf || "Todas as 6 UFs"}</span></footer>
+    </main>
+  </div>;
+}
