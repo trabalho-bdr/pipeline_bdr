@@ -28,6 +28,18 @@ class PublicidadeApiTest(unittest.TestCase):
             ('d10','c5','Santinhos',77), ('d11','c6','Santinhos',88),
             ('d12','c1','SANTINHO SEM VALOR',None), ('d13','c1','VIDEO SEM VALOR',float('inf')),
         ])
+        self.con.execute('CREATE TABLE Candidato(id_candidato VARCHAR, nome_civil VARCHAR)')
+        self.con.execute('CREATE TABLE Municipio(id_municipio VARCHAR, nome VARCHAR)')
+        self.con.execute('CREATE TABLE Partido(id_partido VARCHAR, sigla VARCHAR)')
+        for coluna in ('id_candidato', 'id_municipio', 'id_partido', 'nome_urna'):
+            self.con.execute(f'ALTER TABLE Candidatura ADD COLUMN {coluna} VARCHAR')
+        self.con.execute('ALTER TABLE Candidatura ADD COLUMN numero_urna INTEGER')
+        self.con.execute("INSERT INTO Candidato VALUES ('p1','José da Silva'),('p2','José de Souza')")
+        self.con.execute("INSERT INTO Municipio VALUES ('m1','Natal'),('m2','Outra cidade')")
+        self.con.execute("INSERT INTO Partido VALUES ('p','ABC')")
+        self.con.execute("""UPDATE Candidatura SET id_candidato=CASE WHEN id_candidatura='c2' THEN 'p2' ELSE 'p1' END,
+            nome_urna='Zé',numero_urna=10,id_partido='p',
+            id_municipio=CASE WHEN id_candidatura='c2' THEN 'm2' ELSE 'm1' END""")
         self.scope = patch.multiple(main, _con=self.con, BANCO=':memory:')
         self.scope.start()
         self.addCleanup(self.scope.stop)
@@ -102,6 +114,44 @@ class PublicidadeApiTest(unittest.TestCase):
         self.assertEqual(main.despesas_q9(2024, 'PREFEITO', uf='RJ')['resumo']['publicidade'], 340)
         self.con.execute("INSERT INTO Despesa_Candidatura VALUES ('novo','c1','Santinhos',10)")
         self.assertEqual(main.despesas_q9(2024, 'PREFEITO', uf='RJ', atualizar=True)['resumo']['publicidade'], 350)
+
+    def test_busca_sem_acentos_por_nome_civil_ou_urna_e_sem_duplicar_despesas(self):
+        for busca in ('jose', 'ZE'):
+            encontrados = main.candidatos_q9(2024, 'Prefeito', busca, 'RJ')['candidatos']
+            self.assertEqual([c['id_candidatura'] for c in encontrados], ['c1', 'c2'])
+            self.assertEqual(encontrados[0]['partido'], 'ABC')
+            self.assertNotEqual(encontrados[0]['municipio'], encontrados[1]['municipio'])
+        self.assertEqual(len(main.candidatos_q9(2020, 'Prefeito', 'silva')['candidatos']), 1)
+        self.assertEqual(len(main.candidatos_q9(2024, 'Vereador', 'ze')['candidatos']), 1)
+        self.assertEqual(len(main.candidatos_q9(2024, 'Prefeito', 'ze')['candidatos']), 3)
+
+    def test_selecao_isola_homonimos_e_cache_por_candidatura(self):
+        r1 = main.despesas_q9(2024, 'Prefeito', 'RJ', id_candidatura='c1')
+        r2 = main.despesas_q9(2024, 'Prefeito', 'RJ', id_candidatura='c2')
+        self.assertEqual((r1['resumo']['publicidade'], r1['resumo']['total_campanha']), (140, 200))
+        self.assertEqual((r2['resumo']['publicidade'], r2['resumo']['total_campanha']), (200, 270))
+        self.assertEqual(r1['resumo']['candidaturas'], 1)
+        self.assertEqual(sum(g['valor'] for g in r1['grupos']), 140)
+        self.assertEqual(sum(c['valor'] for c in r1['categorias']), 140)
+        self.assertEqual(r1['candidato']['id_candidatura'], 'c1')
+        self.assertIsNone(main.despesas_q9(2024, 'Prefeito', 'RJ')['candidato'])
+
+    def test_busca_literal_e_validacao_do_recorte_da_selecao(self):
+        for busca in ('%', "' OR 1=1 --", 'inexistente', 'z'):
+            self.assertEqual(main.candidatos_q9(2024, 'Prefeito', busca)['candidatos'], [])
+        for ano, cargo, uf, identidade in ((2020, 'Prefeito', None, 'c1'), (2024, 'Vereador', None, 'c1'),
+                                            (2024, 'Prefeito', 'MA', 'c1'), (2024, 'Prefeito', None, 'inexistente')):
+            with self.subTest(id=identidade, ano=ano, cargo=cargo, uf=uf), self.assertRaises(HTTPException) as erro:
+                main.despesas_q9(ano, cargo, uf, id_candidatura=identidade)
+            self.assertEqual(erro.exception.status_code, 404)
+
+    def test_busca_limita_resultados_e_avisa_para_refinar(self):
+        for i in range(25):
+            self.con.execute("INSERT INTO Candidatura(id_candidatura,id_eleicao,uf,id_candidato,nome_urna) VALUES (?, 'e1','RJ','p1','José')", [f'extra{i}'])
+            self.con.execute("INSERT INTO Despesa_Candidatura VALUES (?,?,'Santinhos',1)", [f'dextra{i}', f'extra{i}'])
+        resultado = main.candidatos_q9(2024, 'Prefeito', 'jose', 'RJ')
+        self.assertEqual(len(resultado['candidatos']), 20)
+        self.assertTrue(resultado['tem_mais'])
 
 
 if __name__ == '__main__':

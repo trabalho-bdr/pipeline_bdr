@@ -1,5 +1,13 @@
 # Interface de mapa (Brasil → estado → município)
 
+## Publicidade: pesquisa por candidato
+
+Na aba **Publicidade**, selecione ano, cargo e estado. Em **Pesquisar candidato específico**, digite pelo menos duas letras do nome de urna ou nome civil (acentos são opcionais) e escolha um resultado. Número, partido, município e UF ajudam a distinguir homônimos. A pesquisa lista até 20 candidaturas com despesas; refine o nome quando houver mais resultados.
+
+A seleção filtra os indicadores, a nuvem, o ranking e o CSV pela candidatura exata naquele ano e cargo. **Ver todos os candidatos** restaura o agregado. Mudar ano, cargo ou estado limpa a seleção. Candidaturas com despesas, mas sem publicidade identificada, apresentam valor zero de publicidade.
+
+A API oferece `GET /api/q9/candidatos?ano=2024&cargo=PREFEITO&busca=nome&uf=RN`; o endpoint `/api/q9/despesas` aceita o parâmetro opcional `id_candidatura`. Reinicie a API após atualizar o código para disponibilizar a nova rota. As consultas são somente leitura e usam o banco configurado em `BDR_BANCO`.
+
 Camadas: `web/` (Preact + TS + Vite + D3), `api/` (FastAPI, somente leitura), `scripts/preparar_malhas.py` (malhas IBGE).
 A API reutiliza `bdr/consultas_apuracao.py` (`q3_municipios`) e não executa a pipeline.
 

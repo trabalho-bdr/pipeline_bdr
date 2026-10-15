@@ -4,14 +4,16 @@ import "./painel-q9.css";
 
 type Analise = "abstencao" | "legenda" | "publicidade" | "patrimonio";
 type Opcao = { ano: number; cargo: string; rotulo: string };
+type Candidato = { id_candidatura: string; nome: string; nome_civil: string | null;
+  numero_urna: number | null; municipio: string | null; uf: string; partido: string | null };
 type Categoria = { categoria: string; grupo: string; valor: number; participacao: number | null; candidaturas: number; registros: number; em_revisao: number };
 type Dados = {
-  ano: number; cargo: string; uf: string | null; criterio: string; grupos: Categoria[]; categorias: Categoria[];
+  ano: number; cargo: string; uf: string | null; criterio: string; candidato: Candidato | null; grupos: Categoria[]; categorias: Categoria[];
   resumo: { publicidade: number; total_campanha: number; indefinido: number; fora_publicidade: number;
     excluido_criterio: number; em_revisao: number; registros: number; candidaturas: number;
     sem_valor: number; ajustes_negativos: number; tipos: number; categorias: number };
 };
-type Filtros = { ano: number; cargo: string; uf: string; criterio: "sugeridas" | "explicitas" };
+type Filtros = { ano: number; cargo: string; uf: string; criterio: "sugeridas" | "explicitas"; candidato: Candidato | null };
 const UFS = ["CE", "MA", "MS", "RJ", "RN", "RS"];
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const numero = (n: number) => n.toLocaleString("pt-BR");
@@ -59,7 +61,7 @@ function Nuvem({ categorias, selecionada, onSelecionar }: {
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelecionar(categorias.find((c) => c.categoria === p.categoria && c.grupo === p.grupo)!); } }}>
         <title>{p.categoria} · {brl(p.valor)}</title>
         <rect x={-p.largura / 2} y={-p.altura / 2} width={p.largura} height={p.altura} rx={8} />
-        <text textAnchor="middle" dominantBaseline="central" fontSize={p.tamanho} fontWeight={650} fill={CORES[i % CORES.length]}>
+        <text text-anchor="middle" dominant-baseline="central" font-size={p.tamanho} font-weight={650} fill={CORES[i % CORES.length]}>
           {p.linhas.map((linha, j) => <tspan x={0} y={(j - (p.linhas.length - 1) / 2) * p.tamanho * 1.12}>{linha}</tspan>)}
         </text>
       </g>)}
@@ -68,9 +70,51 @@ function Nuvem({ categorias, selecionada, onSelecionar }: {
   </div>;
 }
 
+function BuscaCandidato({ filtros, onSelecionar }: { filtros: Filtros; onSelecionar: (c: Candidato | null) => void }) {
+  const [busca, setBusca] = useState("");
+  const [resultado, setResultado] = useState<{ candidatos: Candidato[]; tem_mais: boolean } | null>(null);
+  const [erro, setErro] = useState("");
+  const [carregando, setCarregando] = useState(false);
+  const [tentativa, setTentativa] = useState(0);
+  useEffect(() => {
+    setResultado(null); setErro("");
+    if (busca.trim().length < 2 || filtros.candidato) { setCarregando(false); return; }
+    const ac = new AbortController();
+    setCarregando(true);
+    const timer = setTimeout(() => {
+      const query = new URLSearchParams({ ano: String(filtros.ano), cargo: filtros.cargo, busca: busca.trim() });
+      if (filtros.uf) query.set("uf", filtros.uf);
+      carregar<{ candidatos: Candidato[]; tem_mais: boolean }>(`/api/q9/candidatos?${query}`, ac.signal)
+        .then((r) => { if (!ac.signal.aborted) { setResultado(r); setCarregando(false); } })
+        .catch((e) => { if (!ac.signal.aborted) { setErro(e.message); setCarregando(false); } });
+    }, 300);
+    return () => { clearTimeout(timer); ac.abort(); };
+  }, [busca, filtros.candidato, tentativa]);
+  const detalhes = (c: Candidato) => [c.numero_urna, c.partido, c.municipio, c.uf].filter((v) => v != null && v !== "").join(" · ");
+  if (filtros.candidato) return <section class="q9-candidate-selected" aria-label="Candidato selecionado">
+    <div><span class="q9-eyebrow">DESPESAS DESTE CANDIDATO</span><strong>{filtros.candidato.nome}</strong>
+      <small>{detalhes(filtros.candidato)} · {filtros.ano}</small></div>
+    <button onClick={() => { setBusca(""); onSelecionar(null); }}>Ver todos os candidatos</button>
+  </section>;
+  return <section class="q9-candidate-search" aria-label="Analisar um candidato específico">
+    <label for="q9-busca-candidato">Pesquisar candidato específico</label>
+    <div class="q9-candidate-input"><input id="q9-busca-candidato" type="search" autoComplete="off" maxLength={120}
+      placeholder="Digite o nome de urna ou nome civil" value={busca} aria-describedby="q9-busca-ajuda"
+      onInput={(e) => { setBusca(e.currentTarget.value); setResultado(null); setErro(""); }} />
+      {busca && <button aria-label="Limpar busca de candidato" onClick={() => setBusca("")}>Limpar</button>}</div>
+    <p id="q9-busca-ajuda">Busque pelo menos 2 letras e selecione uma candidatura. A busca respeita o ano, cargo e estado acima.</p>
+    <div role="status" aria-live="polite">{carregando ? "Buscando candidatos…" : resultado ? resultado.candidatos.length ? `${resultado.candidatos.length} candidaturas encontradas${resultado.tem_mais ? "; refine o nome para ver outras" : ""}.` : "Nenhum candidato com despesas encontrado neste recorte." : ""}</div>
+    {erro && <div class="q9-search-error" role="alert">{erro} <button onClick={() => setTentativa((n) => n + 1)}>Tentar novamente</button></div>}
+    {!!resultado?.candidatos.length && <ul class="q9-candidate-results">{resultado.candidatos.map((c) => <li key={c.id_candidatura}><button onClick={() => onSelecionar(c)}>
+      <strong>{c.nome}</strong><span>{detalhes(c)}</span>
+      {c.nome_civil && c.nome_civil !== c.nome && <small>{c.nome_civil}</small>}
+    </button></li>)}</ul>}
+  </section>;
+}
+
 function exportar(dados: Dados) {
-  const linhas: (string | number)[][] = [["Ano", "Cargo", "UF", "Tipo de publicidade", "Valor contratado", "Participação na publicidade (%)", "Candidaturas", "Registros"]];
-  for (const g of dados.grupos) linhas.push([dados.ano, dados.cargo, dados.uf || "CE MA MS RJ RN RS", g.grupo,
+  const linhas: (string | number)[][] = [["Ano", "Cargo", "UF", "Candidato", "ID candidatura", "Tipo de publicidade", "Valor contratado", "Participação na publicidade (%)", "Candidaturas", "Registros"]];
+  for (const g of dados.grupos) linhas.push([dados.ano, dados.cargo, dados.uf || "CE MA MS RJ RN RS", dados.candidato?.nome || "Todos", dados.candidato?.id_candidatura || "", g.grupo,
     g.valor.toFixed(2).replace(".", ","), g.participacao?.toFixed(4).replace(".", ",") || "", g.candidaturas, g.registros]);
   const csv = "\uFEFF" + linhas.map((r) => r.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(";")).join("\r\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -80,7 +124,7 @@ function exportar(dados: Dados) {
 }
 
 export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analise: Analise) => void; ufInicial?: string | null }) {
-  const [filtros, setFiltros] = useState<Filtros>({ ano: 2024, cargo: "PREFEITO", uf: ufInicial || "", criterio: "sugeridas" });
+  const [filtros, setFiltros] = useState<Filtros>({ ano: 2024, cargo: "PREFEITO", uf: ufInicial || "", criterio: "sugeridas", candidato: null });
   const [opcoes, setOpcoes] = useState<Opcao[]>([]);
   const [dados, setDados] = useState<Dados | null>(null);
   const [erro, setErro] = useState("");
@@ -110,6 +154,7 @@ export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analis
     setCarregando(true); setDados(null); setErro(""); setFoco(null);
     const query = new URLSearchParams({ ano: String(filtros.ano), cargo: filtros.cargo, criterio: filtros.criterio });
     if (filtros.uf) query.set("uf", filtros.uf);
+    if (filtros.candidato) query.set("id_candidatura", filtros.candidato.id_candidatura);
     if (atualizacao !== ultimaAtualizacao.current) query.set("atualizar", "true");
     ultimaAtualizacao.current = atualizacao;
     carregar<Dados>(`/api/q9/despesas?${query}`, ac.signal).then((r) => {
@@ -136,17 +181,17 @@ export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analis
         <div class="analysis-switch" role="group" aria-label="Análise eleitoral">
           <button aria-pressed={false} onClick={() => onAnalise("abstencao")}>Abstenção</button>
           <button aria-pressed={false} onClick={() => onAnalise("legenda")}>Votos por legenda</button>
-          <button aria-pressed={true}>Publicidade · Q9</button>
+          <button aria-pressed={true}>Publicidade</button>
           <button aria-pressed={false} onClick={() => onAnalise("patrimonio")}>Patrimônio</button>
         </div>
         <label>Ano da eleição<select aria-label="Ano da eleição" value={filtros.ano} disabled={!opcoes.length} onChange={(e) => {
           const ano = Number(e.currentTarget.value);
-          setFiltros((f) => ({ ...f, ano, cargo: opcoes.some((o) => o.ano === ano && o.cargo === f.cargo) ? f.cargo : opcoes.find((o) => o.ano === ano)?.cargo || "" }));
+          setFiltros((f) => ({ ...f, ano, candidato: null, cargo: opcoes.some((o) => o.ano === ano && o.cargo === f.cargo) ? f.cargo : opcoes.find((o) => o.ano === ano)?.cargo || "" }));
         }}>{[2024, 2022, 2020, 2018].map((ano) => <option value={ano} disabled={!opcoes.some((o) => o.ano === ano)}>{ano}</option>)}</select></label>
-        <label>Tipo de candidato · cargo<select aria-label="Cargo disputado" value={filtros.cargo} disabled={!opcoes.length} onChange={(e) => setFiltros((f) => ({ ...f, cargo: e.currentTarget.value }))}>
+        <label>Tipo de candidato · cargo<select aria-label="Cargo disputado" value={filtros.cargo} disabled={!opcoes.length} onChange={(e) => { const cargo = e.currentTarget.value; setFiltros((f) => ({ ...f, cargo, candidato: null })); }}>
           {opcoes.filter((o) => o.ano === filtros.ano).map((o) => <option value={o.cargo}>{o.rotulo}</option>)}
         </select></label>
-        <label>Estado<select aria-label="Estado da candidatura" value={filtros.uf} onChange={(e) => setFiltros((f) => ({ ...f, uf: e.currentTarget.value }))}><option value="">Todas as 6 UFs</option>{UFS.map((uf) => <option value={uf}>{uf}</option>)}</select></label>
+        <label>Estado<select aria-label="Estado da candidatura" value={filtros.uf} onChange={(e) => { const uf = e.currentTarget.value; setFiltros((f) => ({ ...f, uf, candidato: null })); }}><option value="">Todas as 6 UFs</option>{UFS.map((uf) => <option value={uf}>{uf}</option>)}</select></label>
         <button class="q9-refresh" disabled={carregando} onClick={() => erroOpcoes ? setTentativa((n) => n + 1) : setAtualizacao((n) => n + 1)} aria-label="Atualizar despesas">↻</button>
       </div>
     </header>
@@ -157,6 +202,8 @@ export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analis
       </div>
 
       {(erro || erroOpcoes) && <div class="q9-error" role="alert"><div><strong>Não foi possível carregar este recorte</strong><p>{erro || erroOpcoes}</p></div><button onClick={() => erroOpcoes ? setTentativa((n) => n + 1) : setAtualizacao((n) => n + 1)}>Tentar novamente</button></div>}
+
+      <BuscaCandidato key={`${filtros.ano}:${filtros.cargo}:${filtros.uf}`} filtros={filtros} onSelecionar={(candidato) => setFiltros((f) => ({ ...f, candidato }))} />
 
       <section class="q9-kpis" aria-label="Investimento no recorte" aria-busy={carregando}>
         <article class="q9-kpi q9-kpi-principal"><div><span class="q9-kpi-label">Publicidade identificada</span><span class="q9-kpi-icon">↗</span></div><strong>{carregando ? <i class="q9-skeleton" /> : resumo ? brl(resumo.publicidade) : "—"}</strong><p>Valor contratado nas categorias selecionadas</p></article>

@@ -22,7 +22,7 @@ def _fontes(consultar):
     rows = consultar('''SELECT table_catalog,table_schema,table_name
         FROM information_schema.tables WHERE table_catalog=current_database()
         AND table_schema IN ('main','der_bdr')
-        AND lower(table_name) IN ('candidatura','eleicao','despesa_candidatura','vw_q9_categorias')''')
+        AND lower(table_name) IN ('candidatura','candidato','municipio','partido','eleicao','despesa_candidatura','vw_q9_categorias')''')
     for schema in ('main', 'der_bdr'):
         found = {r['table_name'].lower(): '.'.join(map(_ident, (r['table_catalog'], schema, r['table_name'])))
                  for r in rows if r['table_schema'] == schema}
@@ -31,7 +31,7 @@ def _fontes(consultar):
     raise HTTPException(503, 'O banco selecionado não contém as tabelas de despesas e candidaturas da Q9.')
 
 
-def _recorte(refs, ano, cargo, uf):
+def _recorte(refs, ano, cargo, uf, id_candidatura=None):
     source = (f"{refs['despesa_candidatura']} d JOIN {refs['candidatura']} c USING(id_candidatura) "
               f"JOIN {refs['eleicao']} e USING(id_eleicao)")
     where = "e.ano=? AND upper(strip_accents(trim(e.cargo)))=? AND c.uf IN ('CE','MA','MS','RJ','RN','RS')"
@@ -39,7 +39,43 @@ def _recorte(refs, ano, cargo, uf):
     if uf:
         where += ' AND c.uf=?'
         params.append(uf)
+    if id_candidatura:
+        where += ' AND c.id_candidatura=?'
+        params.append(id_candidatura)
     return source, where, params
+
+
+def _buscar_candidatos(consultar, refs, ano, cargo, uf, busca='', id_candidatura=None):
+    if not all(t in refs for t in ('candidato', 'municipio', 'partido')):
+        raise HTTPException(503, 'O banco não contém o cadastro necessário para pesquisar candidatos.')
+    source, where, params = _recorte(refs, ano, cargo, uf, id_candidatura)
+    if busca:
+        where += ''' AND (contains(upper(strip_accents(coalesce(c.nome_urna,''))),?)
+            OR contains(upper(strip_accents(coalesce(a.nome_civil,''))),?))'''
+        params += [_codigo(busca), _codigo(busca)]
+    return consultar(f'''SELECT DISTINCT c.id_candidatura,c.id_candidato,c.nome_urna,a.nome_civil,
+        coalesce(nullif(trim(c.nome_urna),''),a.nome_civil,'Candidato sem nome') nome,
+        c.numero_urna,c.uf,m.nome municipio,p.sigla partido,e.ano,
+        upper(strip_accents(trim(e.cargo))) cargo
+        FROM {source} JOIN {refs['candidato']} a USING(id_candidato)
+        LEFT JOIN {refs['municipio']} m ON m.id_municipio=c.id_municipio
+        LEFT JOIN {refs['partido']} p ON p.id_partido=c.id_partido
+        WHERE {where} ORDER BY nome,c.uf,municipio,c.id_candidatura LIMIT 21''', params)
+
+
+def candidatos(consultar, ano, cargo, busca, uf=None):
+    if ano not in ANOS or not cargo or not cargo.strip():
+        raise HTTPException(422, 'Selecione um ano e cargo válidos para a Q9.')
+    uf = uf.upper() if uf else None
+    if uf and uf not in UFS:
+        raise HTTPException(422, 'UF fora do recorte disponível.')
+    busca = busca.strip()
+    if len(busca) < 2:
+        return {'candidatos': [], 'tem_mais': False}
+    if len(busca) > 120:
+        raise HTTPException(422, 'A busca aceita até 120 caracteres.')
+    rows = _buscar_candidatos(consultar, _fontes(consultar), ano, cargo, uf, busca)
+    return {'candidatos': rows[:20], 'tem_mais': len(rows) > 20}
 
 
 def opcoes(consultar):
@@ -62,7 +98,7 @@ def _classificar(categoria):
             result['eh_publicidade_sugerida'], result['status_classificacao'], result['requer_revisao'])
 
 
-def resumo(consultar, ano, cargo, uf=None, criterio='sugeridas'):
+def resumo(consultar, ano, cargo, uf=None, criterio='sugeridas', id_candidatura=None):
     if ano not in ANOS:
         raise HTTPException(422, 'A Q9 aceita os anos 2018, 2020, 2022 e 2024.')
     if not cargo or not cargo.strip():
@@ -73,7 +109,13 @@ def resumo(consultar, ano, cargo, uf=None, criterio='sugeridas'):
     if criterio not in ('sugeridas', 'explicitas'):
         raise HTTPException(422, 'Critério de classificação inválido.')
     refs = _fontes(consultar)
-    source, where, params = _recorte(refs, ano, cargo, uf)
+    candidato = None
+    if id_candidatura:
+        encontrados = _buscar_candidatos(consultar, refs, ano, cargo, uf, id_candidatura=id_candidatura)
+        if not encontrados:
+            raise HTTPException(404, 'Candidatura sem despesas no ano, cargo e estado selecionados.')
+        candidato = encontrados[0]
+    source, where, params = _recorte(refs, ano, cargo, uf, id_candidatura)
     categorias = [r['categoria'] for r in consultar(f'SELECT DISTINCT d.categoria FROM {source} WHERE {where}', params)]
     origem = 'views_q9' if 'vw_q9_categorias' in refs else 'regras_locais_q9'
     dimension = {}
@@ -138,7 +180,7 @@ def resumo(consultar, ano, cargo, uf=None, criterio='sugeridas'):
     palavras = sorted([item(r) for r in rows if not r['agregado_categoria'] and r['registros']],
                       key=lambda r: (-r['valor'], r['categoria'] or ''))
     return {'ano': ano, 'cargo': _codigo(cargo), 'uf': uf, 'ufs_cobertas': list(UFS), 'criterio': criterio,
-            'origem_normalizacao': origem, 'grupos': grupos, 'categorias': palavras,
+            'origem_normalizacao': origem, 'grupos': grupos, 'categorias': palavras, 'candidato': candidato,
             'resumo': {'publicidade': float(total['valor']), 'total_campanha': float(total['total_campanha']),
                        'indefinido': float(total['indefinido']), 'fora_publicidade': float(total['fora_publicidade']),
                        'excluido_criterio': float(total['excluido_criterio']), 'em_revisao': float(total['em_revisao']),
