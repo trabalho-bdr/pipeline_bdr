@@ -108,8 +108,8 @@ body { background:var(--bg); color:#f1f2f9; }
 @media (max-width:440px) { .dash-kpis { grid-template-columns:1fr; }.app-filter-row label { flex-basis:100%; }.view-switch button { font-size:11px; } }
 
 /* Gráficos de demonstração: dados isolados em mockLegenda.ts. */
-.layout.analysis-legenda.layout-painel { grid-template-rows:auto auto minmax(400px,52vh) auto auto; }
-.layout.analysis-legenda.layout-painel.preview-mock { grid-template-rows:auto auto auto minmax(400px,52vh) auto auto; }
+.layout.analysis-legenda.layout-painel { grid-template-rows:auto auto minmax(400px,auto) auto auto; }
+.layout.analysis-legenda.layout-painel.preview-mock { grid-template-rows:auto auto auto minmax(400px,auto) auto auto; }
 .layout.analysis-legenda.municipio-selecionado>.mapa { grid-column:1/-1; }
 .panel-status { grid-column:1/-1; padding:10px 14px; border:1px solid #d35a79; border-radius:7px; background:#513147; color:#ffd4de; font-size:12px; }
 .mock-data-banner { grid-column:1/-1; padding:10px 14px; border:1px solid #975f88; border-radius:7px; background:#472c49; color:#ffe0f0; font-size:12px; }
@@ -200,3 +200,9 @@ body { background:var(--bg); color:#f1f2f9; }
 .mapa-legenda { width:min(290px,calc(100% - 85px)); padding:12px 14px; background:#242a42f5; }
 .mapa-legenda .legenda { gap:6px; font-size:12px; color:#d8e0f1; }
 .mapa-legenda .legenda strong { font-size:13px; }
+.mapa-municipio-selecionado { position:absolute; z-index:3; top:16px; right:16px; display:grid; gap:3px; max-width:min(300px,calc(100% - 390px)); padding:9px 12px; border:1px solid #80617e; border-left:3px solid #f15aab; border-radius:7px; background:#242a42f2; box-shadow:0 7px 24px #070a1970; pointer-events:none; }
+.mapa-municipio-selecionado span { color:#b9c7e4; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+.mapa-municipio-selecionado strong { color:#fff; font-size:14px; line-height:1.25; overflow-wrap:anywhere; }
+.layout>.mapa-com-municipio .dica { top:82px; }
+.dash-ranking-partidos { max-height:none; overflow:visible; }
+@media(max-width:700px) { .mapa-municipio-selecionado { top:88px; right:12px; max-width:calc(100% - 24px); }.layout>.mapa-com-municipio .dica { top:auto; } }
