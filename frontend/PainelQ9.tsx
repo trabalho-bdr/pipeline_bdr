@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { posicionarPalavras } from "./nuvemPublicidade";
-import "./publicidade.css";
+import { posicionarPalavras } from "./nuvemQ9";
+import "./painel-q9.css";
 
 type Analise = "abstencao" | "legenda" | "publicidade";
 type Opcao = { ano: number; cargo: string; rotulo: string };

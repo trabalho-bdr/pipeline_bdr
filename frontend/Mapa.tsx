@@ -3,6 +3,7 @@ import { select } from "d3-selection";
 import "d3-transition";
 import { zoom, zoomIdentity, ZoomBehavior } from "d3-zoom";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import type { ComponentChildren } from "preact";
 import { CORES_UF } from "./coresEleitorais";
 
 export type Feat = { type: "Feature"; properties: { codarea: string }; geometry: any };
@@ -13,6 +14,7 @@ type Props = {
   municipiosBusca: { id: string; nome: string; uf: string }[];
   onUf: (sigla: string) => void; onMun: (id: string) => void;
   onMunicipioBusca: (sigla: string, id: string) => void;
+  legendaMapa?: ComponentChildren;
 };
 
 const normalizar = (valor: string) => valor.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
@@ -117,6 +119,7 @@ export function Mapa(p: Props) {
           {iSel >= 0 && <path d={dMun[iSel]} class="mun sel" pointer-events="none" />}
         </g>
       </svg>
+      {p.legendaMapa && <div class="mapa-legenda">{p.legendaMapa}</div>}
       {!p.uf && <div class="mapa-hint">Busque um município ou selecione um estado</div>}
       <div class="dica" aria-live="polite">{dica}</div>
       <div class="zoomctl">

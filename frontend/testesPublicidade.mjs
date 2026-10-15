@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { posicionarPalavras } from "./nuvemPublicidade.ts";
+import { posicionarPalavras } from "./nuvemQ9.ts";
 
 const palavras = Array.from({ length: 36 }, (_, i) => ({ categoria: `Categoria eleitoral ${i}`, grupo: `Tipo ${i % 8}`, valor: 10000 / (i + 1) }));
 
