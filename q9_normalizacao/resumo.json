@@ -1,0 +1,14 @@
+{
+  "linhas_exportadas": 50000,
+  "categorias_originais": 50000,
+  "chaves_normalizadas": 46671,
+  "status": {
+    "AUSENTE": 2,
+    "ALIAS_EXPLICITO": 317,
+    "SEM_REGRA": 14039,
+    "MULTIPLAS_CATEGORIAS": 1805,
+    "REGRA_TEXTUAL_REVISAR": 33837
+  },
+  "total_exportado_centavos": "3300624444.11",
+  "observacao": "Resultados relativos somente à exportação recebida; 50.000 linhas podem indicar limite de exportação. Não somar candidaturas entre categorias."
+}
