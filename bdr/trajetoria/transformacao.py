@@ -160,6 +160,13 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
             FROM despesas_normalizadas
             GROUP BY 1, 2, 3, 4
         """)
+        con.execute("""
+            CREATE OR REPLACE TEMP TABLE despesas_agregadas AS
+            SELECT despesa_ano, despesa_uf, despesa_eleicao,
+                   despesa_sq_candidato, categoria, sum(valor) AS valor
+            FROM despesas_normalizadas
+            GROUP BY 1, 2, 3, 4, 5
+        """)
     else:
         con.execute("""
             CREATE OR REPLACE TEMP TABLE despesas_normalizadas AS
@@ -173,6 +180,13 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
                  SELECT NULL::INTEGER despesa_ano, NULL::VARCHAR despesa_uf,
                      NULL::VARCHAR despesa_eleicao, NULL::VARCHAR despesa_sq_candidato,
                      NULL::DOUBLE gastos_campanha_total
+            WHERE false
+        """)
+        con.execute("""
+            CREATE OR REPLACE TEMP TABLE despesas_agregadas AS
+            SELECT NULL::INTEGER despesa_ano, NULL::VARCHAR despesa_uf,
+                   NULL::VARCHAR despesa_eleicao, NULL::VARCHAR despesa_sq_candidato,
+                   NULL::VARCHAR categoria, NULL::DOUBLE valor
             WHERE false
         """)
 
@@ -223,6 +237,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         WHERE {ano} IS NOT NULL AND {nome} IS NOT NULL
     """)
 
+    print("   Q10: consolidando identidades dos candidatos...", flush=True)
     con.execute("""CREATE TEMP TABLE identidade_bio AS
         SELECT bio_chave, count(DISTINCT cpf_validado) quant_cpf,
                min(cpf_validado) cpf_unico
@@ -251,6 +266,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         id_candidato=md5('BIO_UNICA|' || id_candidatura), metodo_identidade='AMBIGUA'
         WHERE cpf_validado IS NULL AND data_nascimento IS NULL""")
 
+    print("   Q10: gravando candidatos, cargos e candidaturas...", flush=True)
     con.execute("""
         INSERT INTO candidato
         SELECT id_candidato, max(titulo_eleitoral), max(nome), max(nome_urna), min(data_nascimento),
@@ -281,19 +297,18 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         FROM src_candidatura
         QUALIFY row_number() OVER (PARTITION BY id_candidatura ORDER BY sq_candidato) = 1
     """)
+    print("   Q10: vinculando despesas agregadas às candidaturas...", flush=True)
     con.execute("""
         INSERT INTO despesa_candidatura
         SELECT md5('DESPESA|' || cast(d.despesa_ano AS VARCHAR) || '|' ||
-                   d.despesa_eleicao || '|' || d.despesa_uf || '|' ||
+                       d.despesa_eleicao || '|' || d.despesa_uf || '|' ||
                    d.despesa_sq_candidato || '|' || d.categoria),
-               c.id_candidatura, d.categoria, sum(d.valor)
-        FROM despesas_normalizadas d
+               c.id_candidatura, d.categoria, d.valor
+        FROM despesas_agregadas d
         JOIN candidatura c
                     ON c.ano = d.despesa_ano AND c.uf = d.despesa_uf
                  AND trim(c.sequencial) = trim(d.despesa_sq_candidato)
                  AND (d.despesa_eleicao = 'NA' OR c.cd_eleicao = d.despesa_eleicao)
-        GROUP BY c.id_candidatura, d.despesa_ano, d.despesa_eleicao,
-                 d.despesa_uf, d.despesa_sq_candidato, d.categoria
     """)
 
     # Complementa dimensões compartilhadas quando elas já existem no banco.

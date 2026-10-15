@@ -36,6 +36,37 @@ Os ZIPs e CSVs são cacheáveis e podem ser reaproveitados. O banco operacional
 
 ## Execução
 
+### Patrimônio dos candidatos
+
+Para baixar os bens declarados no TSE entre 2018 e 2024:
+
+```powershell
+uv run python baixar_patrimonio.py --ufs CE MA MS RJ RN RS --anos 2018 2020 2022 2024
+```
+
+O resultado fica em `dados_bdr/saida/patrimonio_candidatos_2018_2024.duckdb`,
+na tabela `Patrimonio_Candidato`. A fonte é a coleção `bem_candidato` do TSE;
+cada linha representa um bem declarado e contém o valor, tipo, descrição,
+eleição, UF e `SQ_CANDIDATO`.
+
+### Publicar somente os gastos
+
+Depois que o DER local tiver sido gerado, publique apenas a tabela
+`Despesa_Candidatura`:
+
+```powershell
+$env:MOTHERDUCK_TOKEN = "SEU_TOKEN"
+uv run python publicar_despesas.py --motherduck-db pipeline_bdr_despesas
+```
+
+Para substituir uma tabela já existente:
+
+```powershell
+uv run python publicar_despesas.py --motherduck-db pipeline_bdr_despesas --substituir
+```
+
+O comando aborta se a tabela local estiver vazia.
+
 Para baixar somente as despesas contratadas, sem carregar candidaturas, votos ou
 criar banco DuckDB:
 
