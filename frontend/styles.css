@@ -112,8 +112,8 @@ body { background:var(--bg); color:#f1f2f9; }
 @media (max-width:440px) { .dash-kpis { grid-template-columns:1fr; }.app-filter-row label { flex-basis:100%; }.view-switch button { font-size:11px; } }
 
 /* Gráficos de demonstração: dados isolados em mockLegenda.ts. */
-.layout.analysis-legenda.layout-painel { grid-template-rows:auto auto minmax(460px,64vh) auto auto; }
-.layout.analysis-legenda.layout-painel.preview-mock { grid-template-rows:auto auto auto minmax(460px,64vh) auto auto; }
+.layout.analysis-legenda.layout-painel { grid-template-rows:auto auto minmax(400px,52vh) auto auto; }
+.layout.analysis-legenda.layout-painel.preview-mock { grid-template-rows:auto auto auto minmax(400px,52vh) auto auto; }
 .layout.analysis-legenda.municipio-selecionado>.mapa { grid-column:1/-1; }
 .panel-status { grid-column:1/-1; padding:10px 14px; border:1px solid #d35a79; border-radius:7px; background:#513147; color:#ffd4de; font-size:12px; }
 .mock-data-banner { grid-column:1/-1; padding:10px 14px; border:1px solid #975f88; border-radius:7px; background:#472c49; color:#ffe0f0; font-size:12px; }
@@ -193,3 +193,14 @@ body { background:var(--bg); color:#f1f2f9; }
 .state-dot,.party-dot { display:inline-block; width:10px; height:10px; flex:none; border-radius:3px; vertical-align:middle; }.aside-partido>span,.dash-rank-row>span { display:flex; align-items:center; gap:7px; min-width:0; }
 @media(max-width:1000px) { .dash-kpis.three-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:440px) { .dash-kpis.three-kpis { grid-template-columns:1fr; } }
+
+.insight-extremes { display:grid; gap:2px; margin-top:16px; }
+.insight-extremes h3 { margin:12px 0 5px; color:#c4cce4; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+.insight-extremes h3:first-child { margin-top:0; }
+.insight-extremes button { display:flex; justify-content:space-between; gap:10px; width:100%; padding:5px 2px; border:0; border-bottom:1px solid #414963; border-radius:0; background:transparent; color:#e2e8f8; font-size:12px; text-align:left; cursor:pointer; }
+.insight-extremes button:hover,.insight-extremes button:focus-visible { color:#fff; background:#384260; }
+.insight-extremes button span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.insight-extremes button strong { color:#f6b1da; font-variant-numeric:tabular-nums; }
+.mapa-legenda { width:min(290px,calc(100% - 85px)); padding:12px 14px; background:#242a42f5; }
+.mapa-legenda .legenda { gap:6px; font-size:12px; color:#d8e0f1; }
+.mapa-legenda .legenda strong { font-size:13px; }
