@@ -117,6 +117,14 @@ body { background:var(--bg); color:#f1f2f9; }
 
 /* Gráficos ligados aos filtros da análise de votos por legenda. */
 .legenda-graficos { grid-column:1/-1; display:grid; grid-template-columns:1fr 1.15fr 1.25fr; gap:10px; }
+.legenda-graficos.snapshot-only { grid-template-columns:1fr 1.25fr; }
+.legenda-graficos.temporal-only { grid-template-columns:1fr; }
+.layout.temporal-view { grid-template-columns:minmax(0,1fr); grid-template-rows:auto auto; height:auto; min-height:100dvh; align-content:start; }
+.layout.analysis-legenda.layout-painel.temporal-view,.layout.analysis-legenda.layout-painel.preview-mock.temporal-view { grid-template-rows:auto auto; }
+.temporal-only .dash-chart-card { min-height:430px; }
+.temporal-only .legenda-trend { max-width:1100px; height:300px; margin:8px auto; }
+.view-switch button:disabled { opacity:.45; cursor:not-allowed; }
+@media(max-width:700px) { .legenda-graficos.snapshot-only { grid-template-columns:1fr; } }
 .legenda-graficos .dash-chart-card { min-height:282px; }
 .legenda-proporcao { display:flex; align-items:center; justify-content:center; gap:22px; min-height:190px; }
 .legenda-donut { display:grid; place-items:center; width:145px; height:145px; flex:none; border-radius:50%; }

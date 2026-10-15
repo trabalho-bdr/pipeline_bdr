@@ -5,7 +5,7 @@ export type LinhaLegenda = { id_municipio: string; municipio: string; id_partido
 type Opcao = { ano: number; cargo: string };
 type SeriePartido = { id: string; nome: string; legenda: number };
 export type HistoricoAno = { ano: number; partidos: SeriePartido[] };
-type Props = { uf: string | null; mun: string | null; cargo: string; partido: string; ano: number | null; opcoes: Opcao[]; linhas: LinhaLegenda[]; carregando: boolean; onMunicipio: (uf: string, id: string) => void; ufPorMunicipio: Record<string, string>; ufsDisponiveis: string[]; historicoMock?: HistoricoAno[] };
+type Props = { uf: string | null; mun: string | null; cargo: string; partido: string; ano: number | null; opcoes: Opcao[]; linhas: LinhaLegenda[]; carregando: boolean; somenteEvolucao?: boolean; ocultarEvolucao?: boolean; onMunicipio: (uf: string, id: string) => void; ufPorMunicipio: Record<string, string>; ufsDisponiveis: string[]; historicoMock?: HistoricoAno[] };
 export function resumirLegendaPorPartido(ano: number, linhas: LinhaLegenda[]): HistoricoAno {
   const partidos = new Map<string, SeriePartido>();
   for (const item of linhas) {
@@ -18,14 +18,14 @@ export function resumirLegendaPorPartido(ano: number, linhas: LinhaLegenda[]): H
 const numero = (valor: number) => valor.toLocaleString("pt-BR");
 const percentual = (valor: number) => `${valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 
-export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, carregando, onMunicipio, ufPorMunicipio, ufsDisponiveis, historicoMock }: Props) {
+export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, carregando, somenteEvolucao = false, ocultarEvolucao = false, onMunicipio, ufPorMunicipio, ufsDisponiveis, historicoMock }: Props) {
   const [historico, setHistorico] = useState<HistoricoAno[]>([]);
   const [erroHistorico, setErroHistorico] = useState(false);
   const [anosEscolhidos, setAnosEscolhidos] = useState<number[] | null>(null);
   useEffect(() => setAnosEscolhidos(null), [cargo, opcoes]);
   useEffect(() => {
     setHistorico([]); setErroHistorico(false);
-    if (!cargo || historicoMock || carregando) return;
+    if (!cargo || historicoMock || carregando || ocultarEvolucao) return;
     const anos = [...new Set(opcoes.filter((item) => item.cargo === cargo).map((item) => item.ano))].sort((a, b) => a - b);
     if (!anos.length) { setErroHistorico(true); return; }
     const ac = new AbortController();
@@ -42,7 +42,7 @@ export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, 
     })).then((pontos) => { if (!ac.signal.aborted) setHistorico(pontos); })
       .catch(() => { if (!ac.signal.aborted) setErroHistorico(true); });
     return () => ac.abort();
-  }, [uf, mun, cargo, opcoes, ufsDisponiveis, historicoMock, carregando]);
+  }, [uf, mun, cargo, opcoes, ufsDisponiveis, historicoMock, carregando, ocultarEvolucao]);
 
   const recorte = linhas.filter((item) => !mun || item.id_municipio === mun);
   const votosLegenda = recorte.reduce((soma, item) => soma + item.votos_legenda, 0);
@@ -67,14 +67,14 @@ export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, 
   const totalPontos = series.reduce((soma, serie) => soma + serie.pontos.filter((item) => item.y !== null).length, 0);
   const semDados = carregando || !linhas.length;
 
-  return <section class="legenda-graficos" aria-label="Gráficos de votos por legenda">
-    <article class="dash-chart-card"><h2>Legenda × voto nominal</h2><p>Composição dos votos no recorte selecionado</p>
+  return <section class={`legenda-graficos ${somenteEvolucao ? "temporal-only" : ocultarEvolucao ? "snapshot-only" : ""}`} aria-label="Gráficos de votos por legenda">
+    {!somenteEvolucao && <article class="dash-chart-card"><h2>Legenda × voto nominal</h2><p>Composição dos votos no recorte selecionado</p>
       {semDados ? <div class="dash-empty">A proporção aparece quando os dados do recorte carregam.</div> : <div class="legenda-proporcao">
         <div class="legenda-donut" style={{ background: `conic-gradient(var(--legend-accent, #ed4ca2) ${fatia}%, var(--legend-muted, #66728e) ${fatia}% 100%)` }} role="img" aria-label={`${percentual(fatia)} votos de legenda e ${percentual(100 - fatia)} votos nominais`}><div><strong>{percentual(fatia)}</strong><small>de legenda</small></div></div>
         <div class="legenda-proporcao-valores"><div><i class="ponto-legenda" /><span>Legenda<strong>{numero(votosLegenda)}</strong></span></div><div><i class="ponto-nominal" /><span>Nominal<strong>{numero(votosNominais)}</strong></span></div></div>
       </div>}
-    </article>
-    <article class="dash-chart-card"><h2>Evolução dos votos de legenda</h2><p>{cargo || "Cargo"} · {mun ? "município" : uf || "seis UFs disponíveis"}{partido ? " · partido selecionado no filtro global" : " · todos os partidos"}</p>
+    </article>}
+    {!ocultarEvolucao && <article class="dash-chart-card"><h2>Evolução dos votos de legenda</h2><p>{cargo || "Cargo"} · {mun ? "município" : uf || "seis UFs disponíveis"}{partido ? " · partido selecionado no filtro global" : " · todos os partidos"}</p>
       {!!anosDisponiveis.length && <div class="legenda-year-controls">
         <div class="legenda-year-mode" role="group" aria-label="Anos da evolução">
           <button type="button" aria-pressed={anosEscolhidos === null} onClick={() => setAnosEscolhidos(null)}>Todos os anos</button>
@@ -102,10 +102,10 @@ export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, 
         </svg>
         <div class="legenda-trend-series" aria-label="Cores das séries">{partidosHistoricos.map(([id, nome]) => <span key={id}><i style={{ background: corPartido(id) }} />{nome}</span>)}</div>
       </>}
-      {!!historicoAtivo.length && <p class="legenda-trend-nota">Eleições exibidas para o mesmo cargo: {historicoAtivo.map((item) => item.ano).join(", ")}. {ano !== null && historicoAtivo.some((item) => item.ano === ano) ? `O ano do painel (${ano}) está destacado.` : `O ano do painel (${ano ?? "—"}) não está entre os anos exibidos.`} {historicoAtivo.length === 1 ? "Há apenas uma eleição exibida; não há tendência temporal." : "Cada partido aparece apenas nos anos com registro; lacunas não são zero."}</p>}
-    </article>
-    <article class="dash-chart-card legenda-municipios"><h2>Municípios com mais votos de legenda</h2><p>Selecione uma linha para localizar o município no mapa</p>
+      {!!historicoAtivo.length && <p class="legenda-trend-nota">Eleições exibidas para o mesmo cargo: {historicoAtivo.map((item) => item.ano).join(", ")}. {ano === null ? "Selecione um ano no topo para ver o retrato dessa eleição." : historicoAtivo.some((item) => item.ano === ano) ? `O ano do painel (${ano}) está destacado.` : `O ano do painel (${ano}) não está entre os anos exibidos.`} {historicoAtivo.length === 1 ? "Há apenas uma eleição exibida; não há tendência temporal." : "Cada partido aparece apenas nos anos com registro; lacunas não são zero."}</p>}
+    </article>}
+    {!somenteEvolucao && <article class="dash-chart-card legenda-municipios"><h2>Municípios com mais votos de legenda</h2><p>Selecione uma linha para localizar o município no mapa</p>
       {semDados ? <div class="dash-empty">Os municípios aparecem quando os dados do recorte carregam.</div> : <div class="legenda-municipios-tabela"><div class="legenda-municipios-cabecalho"><span>Município</span><span>Votos</span><span>% legenda</span></div>{municipios.map((item) => <button key={item.id} class={mun === item.id ? "selecionado" : ""} onClick={() => { const sigla = ufPorMunicipio[item.id] || uf; if (sigla) onMunicipio(sigla, item.id); }}><span class="municipio-tabela-nome"><span>{item.nome}</span>{!uf && ufPorMunicipio[item.id] && <small class="uf-badge" style={{ color: CORES_UF[ufPorMunicipio[item.id]], borderColor: CORES_UF[ufPorMunicipio[item.id]] }}>{ufPorMunicipio[item.id]}</small>}</span><strong>{numero(item.legenda)}</strong><span>{percentual(100 * item.legenda / Math.max(1, item.legenda + item.nominais))}</span></button>)}</div>}
-    </article>
+    </article>}
   </section>;
 }
