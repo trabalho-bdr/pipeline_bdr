@@ -286,7 +286,7 @@ uv sync
 uv run streamlit run bdr/app_apuracao.py
 ```
 
-Por padrão, o painel consulta `md:pipeline_bdr_der_completo`. Configure
+Por padrão, o painel consulta `md:pipeline_bdr_der_completo_v2`. Configure
 `MOTHERDUCK_TOKEN` no ambiente antes de iniciar o Streamlit ou informe o token
 no campo protegido da barra lateral. Se quiser consultar um banco local, informe
 o caminho do arquivo `.duckdb` no campo **Banco DER**.

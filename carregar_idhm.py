@@ -86,7 +86,7 @@ def main():
     parser.add_argument("--fontes", default="dados_bdr/fontes", help="pasta para o idhm.csv")
     parser.add_argument(
         "--banco",
-        default="dados_bdr/saida/pipeline_bdr_der_completo.duckdb",
+        default="dados_bdr/saida/pipeline_bdr_der_completo_v2.duckdb",
         help="arquivo DuckDB de destino (padrão: DER completo)",
     )
     args = parser.parse_args()

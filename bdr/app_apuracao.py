@@ -30,7 +30,7 @@ UFS = {  # sigla: (código IBGE, nome, região)
 }
 COD2UF = {v[0]: k for k, v in UFS.items()}
 AZUL, VERMELHO, FUNDO = "#3b5bdb", "#e03131", "#0e0e10"
-BANCO_DER_PADRAO = "md:pipeline_bdr_der_completo"
+BANCO_DER_PADRAO = "md:pipeline_bdr_der_completo_v2"
 
 st.markdown(f"""<style>
 .stApp {{background:{FUNDO}; color:#eee}}

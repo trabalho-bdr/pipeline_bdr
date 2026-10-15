@@ -1,6 +1,6 @@
 # DER completo: eleições, candidaturas e gastos
 
-Este fluxo gera `dados_bdr/saida/pipeline_bdr_der_completo.duckdb` a partir das
+Este fluxo gera `dados_bdr/saida/pipeline_bdr_der_completo_v2.duckdb` a partir das
 fontes oficiais. O período histórico é 2002, 2004, ..., 2024 e o recorte padrão
 é `CE MA MS RJ RN RS`.
 
@@ -28,7 +28,7 @@ dados_bdr/
       raw/<recurso>/<recurso>_<ano>/<recurso>_<ano>_<UF>.csv
     q3_brutos/
   saida/
-    pipeline_bdr_der_completo.duckdb
+    pipeline_bdr_der_completo_v2.duckdb
 ```
 
 Os ZIPs e CSVs são cacheáveis e podem ser reaproveitados. O banco operacional
@@ -61,9 +61,51 @@ uv run python executar_der.py --executar-completo
 Para outro recorte, informe as UFs explicitamente. Para conferir o resultado:
 
 ```powershell
-uv run python -c "import duckdb; c=duckdb.connect('dados_bdr/saida/pipeline_bdr_der_completo.duckdb', read_only=True); print(c.sql('select ano, count(*) from Candidatura group by ano order by ano')); print(c.sql('select count(*) from Despesa_Candidatura'))"
+uv run python -c "import duckdb; c=duckdb.connect('dados_bdr/saida/pipeline_bdr_der_completo_v2.duckdb', read_only=True); print(c.sql('select ano, count(*) from Candidatura group by ano order by ano')); print(c.sql('select count(*) from Despesa_Candidatura'))"
 ```
 
 As tabelas principais são `Eleicao`, `Candidato`, `Candidatura`,
 `Resultado_Candidatura`, `Despesa_Candidatura`, `Cargo`,
 `Votos_Partido_Municipio` e `Participacao_Eleitoral`.
+
+## Despesas vazias no MotherDuck
+
+`--publicar-teste` cria a carga inicial e interrompe se as tabelas já existem.
+Quando o banco local já contém despesas e a tabela remota está vazia ou incompleta,
+configure `MOTHERDUCK_TOKEN` no ambiente e execute, na pasta deste projeto:
+
+```powershell
+uv run python executar_der.py --atualizar-despesas
+```
+
+O comando usa `dados_bdr/saida/pipeline_bdr_der_completo_v2.duckdb`, envia somente
+despesas ausentes e recalcula `Candidatura.gastos_campanha_total` para as candidaturas
+envolvidas. A operação ocorre em uma transação; candidaturas ausentes ou despesas
+com o mesmo ID e dados divergentes interrompem a atualização. Repetir o comando
+não duplica despesas. Não é necessário baixar os arquivos novamente.
+
+Para publicar as 11 tabelas em `pipeline_bdr_der_completo_v2` pela primeira vez:
+
+```powershell
+uv run python executar_der.py --publicar-teste --usuario-motherduck camillylarissa05
+```
+
+O comando confere as contagens de todas as tabelas após a publicação. A autenticação
+usa `MOTHERDUCK_TOKEN`/`motherduck_token` quando configurado; caso contrário, abre o
+login no navegador. `--usuario-motherduck` interrompe o envio se a conta autenticada
+for diferente da informada. Confira também o usuário do notebook com
+`SELECT current_user();` antes de comparar bancos com o mesmo nome.
+
+O terminal informa o usuário da conexão e a contagem no destino antes da operação.
+Após o commit, o banco local é desanexado e a contagem é conferida novamente em
+`pipeline_bdr_der_completo_v2.main.Despesa_Candidatura`. Todas as consultas de destino
+usam esse banco explicitamente. Se o terminal e o notebook exibirem contagens
+diferentes, confira a conta/organização do token e do navegador e execute uma nova
+consulta no notebook (resultados já exibidos não são prova de uma nova execução).
+
+Confira no MotherDuck:
+
+```sql
+SELECT count(*) AS total
+FROM pipeline_bdr_der_completo_v2.main.Despesa_Candidatura;
+```
