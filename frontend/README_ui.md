@@ -1,5 +1,11 @@
 # Interface de mapa (Brasil → estado → município)
 
+## Modos claro e escuro
+
+O seletor com sol e lua fica no canto superior direito do cabeçalho de todas as análises. Clique ou use Tab e Espaço/Enter para alternar. O modo escuro preserva a paleta original e é o padrão; o modo claro usa superfícies claras, textos contrastantes e os mesmos destaques em rosa, roxo e azul. A preferência é salva localmente no navegador, sincronizada entre abas e aplicada antes da renderização para evitar um flash do tema errado. A escolha também funciona sem armazenamento disponível, mas não persiste após fechar/recarregar. A animação respeita a opção do sistema de reduzir movimento.
+
+As cores de fundo, texto, bordas e estados usam variáveis em `temas.css`, com as cores originais como fallback no modo escuro. As cores de séries de dados continuam identificando as mesmas categorias e partidos. Alterar o tema não muda filtros nem refaz consultas à API.
+
 ## Publicidade: pesquisa por candidato
 
 Veja [casos reais e testes por candidato](exemplos_q9.md), incluindo Darlene Pereira, Mainardi e Sarto. O histórico consolida os turnos da mesma pessoa, cargo, território e ano para não contar duas vezes uma candidatura que chegou ao segundo turno.

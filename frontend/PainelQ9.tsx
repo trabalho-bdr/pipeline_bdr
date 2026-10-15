@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { posicionarPalavras } from "./nuvemQ9";
 import { EvolucaoPublicidade } from "./EvolucaoPublicidade";
+import { AlternarTema } from "./Tema";
 import "./painel-q9.css";
 
 type Analise = "abstencao" | "legenda" | "publicidade" | "patrimonio";
@@ -19,7 +20,7 @@ const UFS = ["CE", "MA", "MS", "RJ", "RN", "RS"];
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const numero = (n: number) => n.toLocaleString("pt-BR");
 const percentual = (n: number | null) => n == null ? "—" : `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
-const CORES = ["#f38bc1", "#c2adf1", "#f03d94", "#a4b7e6", "#dc76b3", "#9489d9"];
+const CORES = ["var(--q9-word-1,#f38bc1)", "var(--q9-word-2,#c2adf1)", "var(--q9-word-3,#f03d94)", "var(--q9-word-4,#a4b7e6)", "var(--q9-word-5,#dc76b3)", "var(--q9-word-6,#9489d9)"];
 const chave = (c: Categoria) => `${c.grupo}::${c.categoria}`;
 
 async function carregar<T>(url: string, signal: AbortSignal): Promise<T> {
@@ -176,7 +177,7 @@ export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analis
     <header class="app-header">
       <div class="app-header-main">
         <div class="view-heading"><span class="view-kicker">ELEIÇÕES BRASIL / QUESTÃO 09</span><strong>Publicidade eleitoral</strong><span class="view-context">O investimento por trás das campanhas</span></div>
-        <span class="q9-periodo"><i /> 2018 — 2024</span>
+        <div class="app-header-actions"><span class="q9-periodo"><i /> 2018 — 2024</span><AlternarTema /></div>
       </div>
       <div class="app-filter-row">
         <div class="analysis-switch" role="group" aria-label="Análise eleitoral">
@@ -226,7 +227,7 @@ export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analis
           <h2>{carregando ? "Lendo os investimentos…" : destaque ? selecionada?.categoria || destaque.grupo : "Nenhum tipo identificado"}</h2>
           <strong class="q9-spotlight-value">{!carregando && destaque ? brl(destaque.valor) : "—"}</strong>
           <p>{selecionada ? "contratados nesta categoria" : "contratados neste tipo de publicidade"}</p>
-          <div class="q9-share"><div class="q9-ring" style={{ background: `conic-gradient(#f03d94 ${Math.min(100, Math.max(0, destaque?.participacao || 0))}%, #343d58 0)` }}><span>{!carregando ? percentual(destaque?.participacao ?? null) : "—"}</span></div><p>do investimento<br /><strong>em publicidade identificada</strong></p></div>
+          <div class="q9-share"><div class="q9-ring" style={{ background: `conic-gradient(#f03d94 ${Math.min(100, Math.max(0, destaque?.participacao || 0))}%, var(--theme-surface-raised,#343d58) 0)` }}><span>{!carregando ? percentual(destaque?.participacao ?? null) : "—"}</span></div><p>do investimento<br /><strong>em publicidade identificada</strong></p></div>
           <div class="q9-spotlight-bottom"><span>Candidaturas</span><strong>{!carregando && destaque ? numero(destaque.candidaturas) : "—"}</strong></div>
           <small>Clique em uma palavra ou em um tipo abaixo para explorar o valor investido.</small>
         </section>

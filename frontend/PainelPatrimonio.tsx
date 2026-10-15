@@ -1,6 +1,7 @@
 import { scaleLinear } from "d3-scale";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import { CORES_UF } from "./coresEleitorais";
+import { AlternarTema } from "./Tema";
 import { Feat, Mapa } from "./Mapa";
 import {
   CARGOS_MUNICIPAIS, UFS_Q2, gerarMockMapaQ2, gerarMockPatrimonio, opcoesMockQ2,
@@ -20,7 +21,7 @@ type Props = {
 };
 
 const ANOS = [2024, 2022, 2020, 2018];
-const CINZA_SEM_REGISTRO = "#2b2b31";
+const CINZA_SEM_REGISTRO = "var(--theme-map-nodata,#2b2b31)";
 const CORES_INTENSIDADE = ["#735a9e", "#b54c9d", "#ff68a8"];
 const CORES_RAZAO = ["#4f7fe3", "#7d7099", "#ff68a8"];
 const MIN_DECIS = 30;
@@ -212,9 +213,9 @@ export function PainelPatrimonio({ onAnalise, cat, ufsGeo, geoMun, siglas, nomes
     <header class="app-header">
       <div class="app-header-main">
         <div class="view-heading"><span class="view-kicker">ELEIÇÕES BRASIL / PAINEL{mostrarMock ? " / DADOS SIMULADOS" : ""}</span><strong>Patrimônio e sucesso eleitoral</strong></div>
-        <div class="selected-location" aria-live="polite"><span>{mun ? "MUNICÍPIO SELECIONADO" : uf ? "ESTADO SELECIONADO" : "ABRANGÊNCIA"}</span>
+        <div class="app-header-actions"><div class="selected-location" aria-live="polite"><span>{mun ? "MUNICÍPIO SELECIONADO" : uf ? "ESTADO SELECIONADO" : "ABRANGÊNCIA"}</span>
           <strong>{mun ? `${nomes[mun] || mun} (${uf})` : uf ? `${nomeUf} (${uf})` : "Brasil · UFs disponíveis"}</strong>
-          {mun && <button type="button" onClick={() => onMun(null)}>← Ver {nomeUf}</button>}</div>
+          {mun && <button type="button" onClick={() => onMun(null)}>← Ver {nomeUf}</button>}</div><AlternarTema /></div>
       </div>
       <div class="app-filter-row">
         <div class="analysis-switch" role="group" aria-label="Análise eleitoral">

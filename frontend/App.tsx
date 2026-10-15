@@ -7,6 +7,7 @@ import { gerarLinhasMockLegenda, opcoesMockLegenda } from "./mockLegenda";
 import { CORES_UF, corPartido } from "./coresEleitorais";
 import { PainelPublicidade } from "./PainelQ9";
 import { PainelPatrimonio } from "./PainelPatrimonio";
+import { AlternarTema } from "./Tema";
 
 type Cat = { ufs: { cod: string; sigla: string; nome: string }[]; municipios: Record<string, { id: string; nome: string }[]> };
 type Reg = Record<string, number | string | null>;
@@ -19,7 +20,7 @@ const COBERTOS = ["CE", "MA", "MS", "RJ", "RN", "RS"];
 const ANOS_CARGO_LEGENDA: Record<string, number[]> = { "Deputado Federal": [2018, 2022], "Deputado Estadual": [2018, 2022], "Vereador": [2020, 2024] };
 const SEM_MUNICIPIOS: { id: string; nome: string }[] = [];
 const SEM_OPCOES_LEGENDA: OpcaoLegenda[] = [];
-const CINZA_SEM_REGISTRO = "#2b2b31", ROXO_SEM_VALOR = "#4a3d5c";
+const CINZA_SEM_REGISTRO = "var(--theme-map-nodata,#2b2b31)", ROXO_SEM_VALOR = "var(--theme-map-undefined,#4a3d5c)";
 const CORES_INTENSIDADE_UF = ["#56a6c3", "#8b79bb", "#e773ae"];
 
 const json = async <T,>(u: string, signal?: AbortSignal): Promise<T> => {
@@ -328,6 +329,7 @@ export function App() {
       <header class="app-header">
         <div class="app-header-main">
           <div class="view-heading"><span class="view-kicker">ELEIÇÕES BRASIL / PAINEL{analise === "legenda" && mostrarMock ? " / DADOS SIMULADOS" : ""}</span><strong>{analise === "legenda" ? "Votos por legenda" : "Participação eleitoral"}</strong><div class="view-context" aria-live="polite"><span>{mun ? `${nomes[mun] || mun} · ${nomeUf} (${uf})` : uf ? `${nomeUf} (${uf})` : analise === "legenda" ? "Brasil · UFs disponíveis" : "Brasil"}</span>{analise === "legenda" && mun && <button type="button" onClick={() => setMun(null)}>← Voltar ao estado</button>}</div></div>
+          <div class="app-header-actions"><AlternarTema /></div>
         </div>
         <div class="app-filter-row">
           <div class="analysis-switch" role="group" aria-label="Análise eleitoral">
