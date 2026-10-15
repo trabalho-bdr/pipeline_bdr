@@ -1,12 +1,14 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import duckdb
 
 from bdr.esquema import criar_tabelas as criar_tabelas_q3
 from bdr.trajetoria.config import montar_escopo
 from bdr.trajetoria.transformacao import carregar
+from bdr.trajetoria.transformacao import _cpf_valido
 from bdr.trajetoria.validacao import validar
 
 
@@ -70,6 +72,32 @@ class TrajetoriaTest(unittest.TestCase):
         manifesto = validar(con, escopo, {})
         self.assertFalse(manifesto["completo"])
         self.assertIn("anos sem candidaturas: 2022", manifesto["problemas"])
+
+    def test_despesas_com_e_sem_eleicao_e_cpf_distinto(self):
+        despesas = self.raiz / "despesas.csv"
+        despesas.write_text(
+            "ANO_ELEICAO;SG_UF;CD_ELEICAO;SQ_CANDIDATO;DS_TIPO_DESPESA;VR_DESPESA_CONTRATADA\n"
+            "2020;RN;426;100;Publicidade;100,00\n"
+            "2024;RN;;200;Publicidade;25,00\n"
+            "2024;RN;999;200;Publicidade;1000,00\n",
+            encoding="utf-8",
+        )
+        with duckdb.connect() as con:
+            chamadas = []
+
+            def validar_cpf(valor):
+                chamadas.append(valor)
+                return _cpf_valido(valor)
+
+            with patch("bdr.trajetoria.transformacao._cpf_valido", validar_cpf):
+                carregar(con, [self.cand], [self.votos], [despesas])
+                self.assertEqual(chamadas, ['11122233344'])
+            self.assertEqual(con.execute(
+                "SELECT ano, gastos_campanha_total FROM candidatura ORDER BY ano"
+            ).fetchall(), [(2020, 100.0), (2024, 25.0)])
+            self.assertEqual(con.execute(
+                "SELECT sum(valor), count(*) FROM despesa_candidatura"
+            ).fetchone(), (125.0, 2))
 
 
 if __name__ == "__main__":

@@ -58,6 +58,7 @@ TABELAS_TRAJETORIA = {
 
 
 def criar_tabelas(con):
-    for nome, colunas in TABELAS_TRAJETORIA.items():
+    for nome in reversed(TABELAS_TRAJETORIA):
         con.execute(f"DROP TABLE IF EXISTS {nome}")
+    for nome, colunas in TABELAS_TRAJETORIA.items():
         con.execute(f"CREATE TABLE {nome} ({colunas})")

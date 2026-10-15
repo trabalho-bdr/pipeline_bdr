@@ -108,6 +108,10 @@ def construir(q3, q10, destino, consulta_cand=()):
         ]
         for statement in statements:
             con.execute(statement)
+        if con.execute("""SELECT count(*) FROM information_schema.tables
+                WHERE table_catalog='q10' AND table_schema='main'
+                  AND lower(table_name)='patrimonio_candidato'""").fetchone()[0]:
+            con.execute("INSERT INTO Patrimonio_Candidato SELECT * FROM q10.main.Patrimonio_Candidato")
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")

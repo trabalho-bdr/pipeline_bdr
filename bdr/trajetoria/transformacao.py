@@ -1,6 +1,7 @@
 """Normaliza layouts históricos do TSE nas tabelas de trajetória."""
 
 from pathlib import Path
+from time import perf_counter
 
 from .esquema import criar_tabelas
 
@@ -103,6 +104,15 @@ def _valor_monetario(expr):
 def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
     if not arquivos_candidatos:
         raise ValueError("Nenhum arquivo consulta_cand foi encontrado.")
+
+    def executar(sql):
+        etapa = " ".join(sql.split())[:100]
+        print(f"   Q10 início: {etapa}", flush=True)
+        inicio = perf_counter()
+        resultado = con.execute(sql)
+        print(f"   Q10 concluído em {perf_counter() - inicio:.2f}s: {etapa}", flush=True)
+        return resultado
+
     criar_tabelas(con)
     con.create_function("cpf_valido_bdr", _cpf_valido, ["VARCHAR"], "VARCHAR", null_handling="special")
     cand = _fonte(arquivos_candidatos)
@@ -143,7 +153,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         despesa_sq = _expr(dc, 'sq_candidato')
         despesa_tipo = _expr(dc, 'tipo_despesa')
         despesa_valor = _valor_monetario(_expr(dc, 'valor_despesa'))
-        con.execute(f"""
+        executar(f"""
             CREATE OR REPLACE TEMP TABLE despesas_normalizadas AS
             SELECT {despesa_ano} AS despesa_ano, {despesa_uf} AS despesa_uf,
                    {despesa_eleicao} AS despesa_eleicao,
@@ -153,14 +163,14 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
             FROM {despesas}
             WHERE {despesa_tipo} IS NOT NULL AND {despesa_valor} IS NOT NULL
         """)
-        con.execute("""
+        executar("""
             CREATE OR REPLACE TEMP TABLE gastos_por_candidatura AS
             SELECT despesa_ano, despesa_uf, despesa_eleicao, despesa_sq_candidato,
                    sum(valor) AS gastos_campanha_total
             FROM despesas_normalizadas
             GROUP BY 1, 2, 3, 4
         """)
-        con.execute("""
+        executar("""
             CREATE OR REPLACE TEMP TABLE despesas_agregadas AS
             SELECT despesa_ano, despesa_uf, despesa_eleicao,
                    despesa_sq_candidato, categoria, sum(valor) AS valor
@@ -168,21 +178,21 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
             GROUP BY 1, 2, 3, 4, 5
         """)
     else:
-        con.execute("""
+        executar("""
             CREATE OR REPLACE TEMP TABLE despesas_normalizadas AS
             SELECT NULL::INTEGER despesa_ano, NULL::VARCHAR despesa_uf,
                    NULL::VARCHAR despesa_eleicao, NULL::VARCHAR despesa_sq_candidato,
                    NULL::VARCHAR categoria, NULL::DOUBLE valor
             WHERE false
         """)
-        con.execute("""
+        executar("""
             CREATE OR REPLACE TEMP TABLE gastos_por_candidatura AS
                  SELECT NULL::INTEGER despesa_ano, NULL::VARCHAR despesa_uf,
                      NULL::VARCHAR despesa_eleicao, NULL::VARCHAR despesa_sq_candidato,
                      NULL::DOUBLE gastos_campanha_total
             WHERE false
         """)
-        con.execute("""
+        executar("""
             CREATE OR REPLACE TEMP TABLE despesas_agregadas AS
             SELECT NULL::INTEGER despesa_ano, NULL::VARCHAR despesa_uf,
                    NULL::VARCHAR despesa_eleicao, NULL::VARCHAR despesa_sq_candidato,
@@ -190,8 +200,8 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
             WHERE false
         """)
 
-    con.execute(f"""
-        CREATE OR REPLACE TEMP TABLE src_candidatura AS
+    executar(f"""
+        CREATE OR REPLACE TEMP TABLE candidatos_normalizados AS
         SELECT
             {id_candidatura} AS id_candidatura,
             {id_pessoa} AS id_candidato,
@@ -201,7 +211,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
             {turno} AS turno,
             {uf} AS uf,
             {sq} AS sq_candidato,
-            cpf_valido_bdr({cpf}) AS cpf_validado,
+            {cpf} AS cpf_bruto,
             {nome} AS nome,
             {_expr(cc, 'nome_urna')} AS nome_urna,
             {nascimento} AS data_nascimento,
@@ -224,21 +234,49 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
             {_expr(cc, 'situacao_registro')} AS situacao_registro,
             upper({_expr(cc, 'resultado')}) AS situacao_final,
             try_cast(replace(replace({_expr(cc, 'patrimonio')}, '.', ''), ',', '.') AS DOUBLE) AS patrimonio,
-            pp.gastos_campanha_total,
             upper({_expr(cc, 'reeleicao')}) IN ('S', 'SIM', '1') AS reeleicao,
             {_expr(cc, 'ds_eleicao')} AS ds_eleicao,
             {_data(_expr(cc, 'dt_eleicao'))} AS dt_eleicao,
             CASE WHEN {cpf} IS NOT NULL THEN 'CPF' ELSE 'BIOGRAFICO' END AS metodo_identidade
                 FROM {cand}
-                LEFT JOIN gastos_por_candidatura pp
-                      ON pp.despesa_ano = {ano} AND pp.despesa_uf = {uf}
-                 AND pp.despesa_sq_candidato = {sq}
-                 AND (pp.despesa_eleicao = 'NA' OR pp.despesa_eleicao = {eleicao})
         WHERE {ano} IS NOT NULL AND {nome} IS NOT NULL
     """)
 
+    # A função Python roda uma vez por CPF distinto, antes de qualquer junção.
+    executar("""CREATE OR REPLACE TEMP TABLE cpfs_distintos AS
+        SELECT DISTINCT cpf_bruto FROM candidatos_normalizados
+        WHERE cpf_bruto IS NOT NULL""")
+    executar("""CREATE OR REPLACE TEMP TABLE cpfs_validados AS
+        SELECT cpf_bruto, cpf_valido_bdr(cpf_bruto) cpf_validado
+        FROM cpfs_distintos""")
+    executar("""CREATE OR REPLACE TEMP TABLE chaves_candidatura AS
+        SELECT DISTINCT ano, uf, sq_candidato, cd_eleicao
+        FROM candidatos_normalizados""")
+    # Ramos disjuntos preservam inclusive o caso em que há despesas com e sem
+    # código de eleição para a mesma candidatura, sem OR na condição da junção.
+    executar("""CREATE OR REPLACE TEMP TABLE gastos_vinculados AS
+        SELECT k.*, g.gastos_campanha_total
+        FROM chaves_candidatura k JOIN gastos_por_candidatura g
+          ON k.ano=g.despesa_ano AND k.uf=g.despesa_uf
+         AND k.sq_candidato=g.despesa_sq_candidato
+         AND k.cd_eleicao=g.despesa_eleicao
+        WHERE g.despesa_eleicao <> 'NA'
+        UNION ALL
+        SELECT k.*, g.gastos_campanha_total
+        FROM chaves_candidatura k JOIN gastos_por_candidatura g
+          ON k.ano=g.despesa_ano AND k.uf=g.despesa_uf
+         AND k.sq_candidato=g.despesa_sq_candidato
+        WHERE g.despesa_eleicao = 'NA'""")
+    executar("""CREATE OR REPLACE TEMP TABLE src_candidatura AS
+        SELECT b.* EXCLUDE (cpf_bruto), p.cpf_validado, g.gastos_campanha_total
+        FROM candidatos_normalizados b
+        LEFT JOIN cpfs_validados p ON b.cpf_bruto=p.cpf_bruto
+        LEFT JOIN gastos_vinculados g
+          ON b.ano=g.ano AND b.uf=g.uf AND b.sq_candidato=g.sq_candidato
+         AND b.cd_eleicao=g.cd_eleicao""")
+
     print("   Q10: consolidando identidades dos candidatos...", flush=True)
-    con.execute("""CREATE TEMP TABLE identidade_bio AS
+    executar("""CREATE TEMP TABLE identidade_bio AS
         SELECT bio_chave, count(DISTINCT cpf_validado) quant_cpf,
                min(cpf_validado) cpf_unico
         FROM (
@@ -248,7 +286,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
                                          || '|' || cast(data_nascimento AS VARCHAR) || '|' || coalesce(uf_nascimento, '') END bio_chave
             FROM src_candidatura)
         WHERE bio_chave IS NOT NULL GROUP BY bio_chave""")
-    con.execute("""UPDATE src_candidatura s SET
+    executar("""UPDATE src_candidatura s SET
         id_candidato = CASE
             WHEN s.cpf_validado IS NOT NULL THEN md5('CPF|' || s.cpf_validado)
             WHEN i.quant_cpf = 1 THEN md5('CPF|' || i.cpf_unico)
@@ -262,19 +300,19 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         FROM identidade_bio i
         WHERE i.bio_chave = regexp_replace(upper(strip_accents(trim(s.nome))), '\\s+', ' ', 'g')
             || '|' || cast(s.data_nascimento AS VARCHAR) || '|' || coalesce(s.uf_nascimento, '')""")
-    con.execute("""UPDATE src_candidatura SET
+    executar("""UPDATE src_candidatura SET
         id_candidato=md5('BIO_UNICA|' || id_candidatura), metodo_identidade='AMBIGUA'
         WHERE cpf_validado IS NULL AND data_nascimento IS NULL""")
 
     print("   Q10: gravando candidatos, cargos e candidaturas...", flush=True)
-    con.execute("""
+    executar("""
         INSERT INTO candidato
         SELECT id_candidato, max(titulo_eleitoral), max(nome), max(nome_urna), min(data_nascimento),
                max(genero), max(raca), max(grau_instrucao), max(ocupacao), max(uf_nascimento),
                max(metodo_identidade), count(DISTINCT nome) > 1
         FROM src_candidatura GROUP BY id_candidato
     """)
-    con.execute("""
+    executar("""
         INSERT INTO cargo
         SELECT cd_cargo, max(cargo),
                CASE WHEN max(cargo) IN ('Prefeito','Vice-Prefeito','Vereador') THEN 'MUNICIPAL'
@@ -288,7 +326,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
                     WHEN 'Governador' THEN 6 WHEN 'Presidente' THEN 7 ELSE NULL END
         FROM src_candidatura WHERE cd_cargo IS NOT NULL GROUP BY cd_cargo
     """)
-    con.execute("""
+    executar("""
         INSERT INTO candidatura
         SELECT id_candidatura, id_candidato, ano, cd_eleicao, turno, cd_cargo,
                numero_partido, sigla_partido, uf, cod_tse_municipio,
@@ -298,7 +336,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         QUALIFY row_number() OVER (PARTITION BY id_candidatura ORDER BY sq_candidato) = 1
     """)
     print("   Q10: vinculando despesas agregadas às candidaturas...", flush=True)
-    con.execute("""
+    executar("""
         INSERT INTO despesa_candidatura
         SELECT md5('DESPESA|' || cast(d.despesa_ano AS VARCHAR) || '|' ||
                        d.despesa_eleicao || '|' || d.despesa_uf || '|' ||
@@ -308,20 +346,31 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         JOIN candidatura c
                     ON c.ano = d.despesa_ano AND c.uf = d.despesa_uf
                  AND trim(c.sequencial) = trim(d.despesa_sq_candidato)
-                 AND (d.despesa_eleicao = 'NA' OR c.cd_eleicao = d.despesa_eleicao)
+                 AND c.cd_eleicao = d.despesa_eleicao
+        WHERE d.despesa_eleicao <> 'NA'
+        UNION ALL
+        SELECT md5('DESPESA|' || cast(d.despesa_ano AS VARCHAR) || '|' ||
+                       d.despesa_eleicao || '|' || d.despesa_uf || '|' ||
+                   d.despesa_sq_candidato || '|' || d.categoria),
+               c.id_candidatura, d.categoria, d.valor
+        FROM despesas_agregadas d
+        JOIN candidatura c
+                    ON c.ano = d.despesa_ano AND c.uf = d.despesa_uf
+                 AND trim(c.sequencial) = trim(d.despesa_sq_candidato)
+        WHERE d.despesa_eleicao = 'NA'
     """)
 
     # Complementa dimensões compartilhadas quando elas já existem no banco.
     existentes = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
     if "eleicao" in existentes:
-        con.execute("""
+        executar("""
             INSERT INTO eleicao
             SELECT ano, cd_eleicao, turno, max(ds_eleicao), min(dt_eleicao)
             FROM src_candidatura GROUP BY ano, cd_eleicao, turno
             ON CONFLICT DO NOTHING
         """)
     if "partido" in existentes:
-        con.execute("""
+        executar("""
             INSERT INTO partido
             SELECT numero_partido, sigla_partido, max(nome_partido)
             FROM src_candidatura
@@ -340,7 +389,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         vcargo = _expr(cv, "cd_cargo", "'NA'")
         vmunicipio = _expr(cv, "cod_municipio")
         vvotos = f"coalesce(try_cast({_expr(cv, 'votos')} AS BIGINT), 0)"
-        con.execute(f"""
+        executar(f"""
             CREATE OR REPLACE TEMP VIEW votos_candidatura AS
             SELECT md5(cast({va} AS VARCHAR) || '|' || coalesce({ve}, 'NA') || '|' ||
                        cast({vt} AS VARCHAR) || '|' || coalesce({vu}, '') || '|' ||
@@ -352,9 +401,9 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
             GROUP BY ALL
         """)
     else:
-        con.execute("CREATE OR REPLACE TEMP VIEW votos_candidatura AS SELECT NULL::VARCHAR id_candidatura, NULL::BIGINT votos WHERE false")
+        executar("CREATE OR REPLACE TEMP VIEW votos_candidatura AS SELECT NULL::VARCHAR id_candidatura, NULL::BIGINT votos WHERE false")
 
-    con.execute("""
+    executar("""
         INSERT INTO resultado_candidatura
         SELECT c.id_candidatura, max(v.votos), NULL, NULL, max(s.situacao_final),
                starts_with(coalesce(max(s.situacao_final), ''), 'ELEITO'),
@@ -365,7 +414,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         LEFT JOIN votos_candidatura v USING (id_candidatura)
         GROUP BY c.id_candidatura, c.turno
     """)
-    con.execute("""
+    executar("""
         UPDATE resultado_candidatura r
         SET percentual_votos = x.percentual,
             colocacao = x.colocacao
@@ -388,7 +437,7 @@ def carregar(con, arquivos_candidatos, arquivos_votos, arquivos_despesas=()):
         WHERE r.id_candidatura = x.id_candidatura
     """)
 
-    con.execute("""
+    executar("""
         CREATE OR REPLACE VIEW vw_trajetoria_candidato AS
         WITH base AS (
             SELECT c.id_candidato, c.id_candidatura, c.ano, c.cd_cargo,

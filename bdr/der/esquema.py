@@ -1,6 +1,7 @@
 """Esquema final do DER para Q3 e Q10. A ordem das colunas é contratual."""
 
 TABELAS_DER = {
+    "Patrimonio_Candidato": "ano INTEGER, cd_eleicao VARCHAR, uf VARCHAR, sq_candidato VARCHAR, numero_candidato INTEGER, nome_candidato VARCHAR, tipo_bem VARCHAR, descricao_bem VARCHAR, valor_bem DOUBLE, data_atualizacao DATE, arquivo_origem VARCHAR",
     "Municipio": "id_municipio VARCHAR PRIMARY KEY, cod_tse VARCHAR UNIQUE, nome VARCHAR, uf VARCHAR, regiao VARCHAR",
     "Partido": "id_partido VARCHAR PRIMARY KEY, sigla VARCHAR, nome VARCHAR, numero INTEGER",
     "Eleicao": "id_eleicao VARCHAR PRIMARY KEY, ano INTEGER, tipo_eleicao VARCHAR, turno SMALLINT, cargo VARCHAR, data DATE",

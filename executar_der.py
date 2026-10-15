@@ -2,14 +2,16 @@
 
 import argparse
 import os
+import re
 from pathlib import Path
 
 import duckdb
 
 from bdr.der.esquema import TABELAS_DER
 from bdr.der.q3_bruto import processar as processar_q3
-from bdr.der.q10_bruto import processar as processar_q10
+from bdr.der.q10_bruto import processar as processar_q10, retomar as retomar_q10
 from bdr.der.transformacao import construir
+from bdr.der.patrimonio import carregar_patrimonio, ANOS_PADRAO as ANOS_PATRIMONIO
 from bdr.trajetoria.config import ANOS_TRAJETORIA
 
 
@@ -19,7 +21,7 @@ Q10_ANOS = tuple(ANOS_TRAJETORIA)
 SAIDA_PADRAO = Path("dados_bdr/saida/pipeline_bdr_der_completo_v2.duckdb")
 
 
-def executar_completo(ufs, q3_anos, q10_anos, saida, planilhas_idhm, csv_idhm):
+def executar_completo(ufs, q3_anos, q10_anos, saida, planilhas_idhm, csv_idhm, retomar=False):
     """Baixa/processa fontes brutas e monta o DER sem ler bancos DER antigos."""
     anos_invalidos = sorted(set(q10_anos) - set(Q10_ANOS))
     if anos_invalidos:
@@ -27,19 +29,36 @@ def executar_completo(ufs, q3_anos, q10_anos, saida, planilhas_idhm, csv_idhm):
             "Q10 aceita somente anos eleitorais de 2002 a 2024; inválidos: "
             + ", ".join(map(str, anos_invalidos))
         )
-    if saida.resolve() != SAIDA_PADRAO.resolve():
-        raise ValueError(f"A saída desta carga deve ser {SAIDA_PADRAO}")
     base = Path("dados_bdr/trabalho_der")
     q3 = base / "q3_operacional.duckdb"
     q10 = base / "q10_operacional.duckdb"
     parcial = saida.with_name(saida.stem + ".parcial.duckdb")
-    for temporario in (q3, q10):
-        if temporario.is_file():
-            temporario.unlink()
-    processar_q3(ufs, q3_anos, q3, base / "q3_brutos", planilhas_idhm, csv_idhm)
-    processar_q10(ufs, q10_anos, q10, base / "q10_brutos")
-    if saida.is_file():
-        saida.unlink()  # somente a saída local regenerável indicada na CLI
+    if retomar:
+        if not q3.is_file():
+            raise FileNotFoundError(f"Banco Q3 ausente: {q3}")
+        with duckdb.connect(str(q3), read_only=True) as con:
+            tabelas = {r[0].lower() for r in con.execute("SHOW TABLES").fetchall()}
+            if "metadados_votacao" not in tabelas or con.execute(
+                "SELECT fonte FROM metadados_votacao"
+            ).fetchall() != [("votacao_partido_munzona:validos_com_convertidos:v1",)]:
+                raise ValueError("Q3 antigo: execute a carga completa sem --retomar-q10 para corrigir os votos")
+            escopo = set(con.execute(
+                "SELECT DISTINCT v.ano, upper(trim(m.uf)) FROM votos_partido_municipio v "
+                "JOIN municipio m ON m.cod_tse=v.cod_tse_municipio"
+            ).fetchall())
+        if escopo != {(int(ano), uf.upper()) for ano in q3_anos for uf in ufs}:
+            raise ValueError("Escopo Q3 difere dos anos/UFs pedidos; bancos preservados")
+        retomar_q10(ufs, q10_anos, q10)
+    else:
+        for temporario in (q3, q10):
+            if temporario.is_file():
+                temporario.unlink()
+        processar_q3(ufs, q3_anos, q3, base / "q3_brutos", planilhas_idhm, csv_idhm)
+        processar_q10(ufs, q10_anos, q10, base / "q10_brutos")
+    anos_patrimonio = sorted(set(q10_anos) & set(ANOS_PATRIMONIO))
+    if anos_patrimonio:
+        with duckdb.connect(str(q10)) as con:
+            carregar_patrimonio(con, ufs, anos_patrimonio, base / "patrimonio_brutos")
     if parcial.is_file():
         parcial.unlink()
     construir(q3, q10, parcial)
@@ -111,13 +130,14 @@ def _atualizar_despesas(con, banco="pipeline_bdr_der_completo_v2"):
     return depois - antes, depois
 
 
-def publicar(local, atualizar_despesas=False, usuario_esperado=None):
+def publicar(local, atualizar_despesas=False, usuario_esperado=None, banco="pipeline_bdr_der_completo_v2"):
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", banco):
+        raise ValueError("Nome MotherDuck: comece com uma letra e use apenas letras, números e _")
     token = os.environ.get("MOTHERDUCK_TOKEN") or os.environ.get("motherduck_token")
     if token:
         os.environ["motherduck_token"] = token
     else:
         print("Sem token no ambiente; autentique-se pelo navegador para publicar.", flush=True)
-    banco = "pipeline_bdr_der_completo_v2"
     con = duckdb.connect("md:")
     try:
         usuario = con.execute("SELECT current_user()").fetchone()[0]
@@ -197,11 +217,15 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     acao = ap.add_mutually_exclusive_group(required=True)
     acao.add_argument("--executar-completo", action="store_true")
+    ap.add_argument("--retomar-q10", action="store_true",
+                    help="Reutiliza Q3 e refaz Q10 a partir do staging completo, sem downloads")
     ap.add_argument("--ufs", nargs="+", default=UFS_PADRAO)
     ap.add_argument("--q3-anos", nargs="+", type=int, default=Q3_ANOS)
     ap.add_argument("--q10-anos", nargs="+", type=int, default=Q10_ANOS)
     ap.add_argument("--saida", type=Path, default=SAIDA_PADRAO)
     ap.add_argument("--usuario-motherduck", help="Confere o usuário antes de enviar dados")
+    ap.add_argument("--motherduck-db", default="pipeline_bdr_der_completo_v2",
+                    help="Nome do banco de destino no MotherDuck")
     ap.add_argument("--idhm-planilhas", default="planilhas",
                     help="Pasta com planilhas XLSX do IDHM 2010")
     ap.add_argument("--idhm-csv", default="dados_bdr/fontes/idhm.csv",
@@ -210,15 +234,17 @@ def main():
     acao.add_argument("--atualizar-despesas", action="store_true",
                       help="Completa despesas no MotherDuck existente e atualiza os totais")
     args = ap.parse_args()
+    if args.retomar_q10 and not args.executar_completo:
+        ap.error("--retomar-q10 exige --executar-completo")
     if args.executar_completo:
         executar_completo(args.ufs, args.q3_anos, args.q10_anos, args.saida,
-                          args.idhm_planilhas, args.idhm_csv)
+                          args.idhm_planilhas, args.idhm_csv, retomar=args.retomar_q10)
     if args.publicar_teste or args.atualizar_despesas:
         if not args.saida.is_file():
             ap.error(f"Banco local não encontrado: {args.saida}")
         publicar(args.saida, atualizar_despesas=args.atualizar_despesas,
-                 usuario_esperado=args.usuario_motherduck)
-        print("Publicado em pipeline_bdr_der_completo_v2")
+                 usuario_esperado=args.usuario_motherduck, banco=args.motherduck_db)
+        print(f"Publicado em {args.motherduck_db}")
 
 
 if __name__ == "__main__":

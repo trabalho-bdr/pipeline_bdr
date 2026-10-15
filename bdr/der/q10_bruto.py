@@ -192,14 +192,47 @@ def processar(ufs, anos, banco, trabalho):
                    min(coalesce(try_strptime(dt_eleicao,'%d/%m/%Y')::DATE,
                                 try_cast(dt_eleicao AS DATE))) data_eleicao
             FROM stg_consulta_cand GROUP BY 1,2,3,4""")
+        _transformar(con)
+    finally:
+        con.close()
+    return banco
+
+
+def _transformar(con):
+    """Refaz a transformação atomicamente e preserva o staging para retomada."""
+    con.execute("BEGIN TRANSACTION")
+    try:
         criar_dimensoes_operacionais(con)
         _fonte_candidatos(con)
         print("Q10 transformando candidaturas, votos e despesas...", flush=True)
         carregar(con, "fonte_candidatos", "stg_votos", "stg_despesas")
         print("Q10 transformação concluída", flush=True)
-        con.execute("DROP TABLE stg_votos")
-        con.execute("DROP TABLE stg_despesas")
-        con.execute("DROP TABLE stg_consulta_cand")
-    finally:
-        con.close()
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+
+
+def retomar(ufs, anos, banco):
+    """Reutiliza somente staging completo, inclusive de cargas anteriores."""
+    banco = Path(banco)
+    if not banco.is_file():
+        raise FileNotFoundError(f"Banco Q10 ausente: {banco}")
+    with duckdb.connect(str(banco)) as con:
+        tabelas = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+        obrigatorias = {"stg_consulta_cand", "stg_votos", "stg_despesas", "stg_tipo_eleicao"}
+        if not obrigatorias.issubset(tabelas):
+            raise ValueError("Q10 sem staging completo para retomar; nenhuma tabela foi alterada")
+        esperado = {(int(ano), uf.upper()) for ano in anos for uf in ufs}
+        for tabela, campo_ano, campo_uf in (
+            ("stg_consulta_cand", "ano", "uf"),
+            ("stg_votos", "ANO_ELEICAO", "SG_UF"),
+        ):
+            presente = set(con.execute(
+                f"SELECT DISTINCT try_cast({campo_ano} AS INTEGER), upper(trim({campo_uf})) FROM {tabela}"
+            ).fetchall())
+            if presente != esperado:
+                raise ValueError(f"Escopo de {tabela} difere dos anos/UFs pedidos; nenhuma tabela foi alterada")
+        print(f"Q10 retomando staging de {banco}", flush=True)
+        _transformar(con)
     return banco
