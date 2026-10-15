@@ -4,7 +4,8 @@ import "d3-transition";
 import { zoom, zoomIdentity, ZoomBehavior } from "d3-zoom";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
-import { CORES_UF } from "./coresEleitorais";
+import { coresUf } from "./coresEleitorais";
+import { useTema } from "./Tema";
 
 export type Feat = { type: "Feature"; properties: { codarea: string }; geometry: any };
 type Props = {
@@ -21,6 +22,8 @@ type Props = {
 const normalizar = (valor: string) => valor.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
 export function Mapa(p: Props) {
+  const { tema } = useTema();
+  const CORES_UF = coresUf(tema);
   const svg = useRef<SVGSVGElement>(null), g = useRef<SVGGElement>(null);
   const zb = useRef<ZoomBehavior<SVGSVGElement, unknown>>();
   const [size, setSize] = useState({ w: 800, h: 600 });

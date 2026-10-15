@@ -2,7 +2,7 @@
   "name": "bdr-apuracao-web",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "vite", "build": "tsc --noEmit && vite build", "typecheck": "tsc --noEmit", "test:q9": "node --experimental-strip-types --test testesPublicidade.mjs" },
+  "scripts": { "dev": "vite", "build": "tsc --noEmit && vite build", "typecheck": "tsc --noEmit", "test:q9": "node --experimental-strip-types --test testesPublicidade.mjs", "test:cores": "node --experimental-strip-types --test testesCores.mjs" },
   "dependencies": {
     "d3-geo": "^3.1.1", "d3-scale": "^4.0.2", "d3-selection": "^3.0.0", "d3-transition": "^3.0.1",
     "d3-zoom": "^3.0.0", "preact": "^10.24.0", "topojson-client": "^3.1.0"

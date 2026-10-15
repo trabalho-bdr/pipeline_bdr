@@ -227,7 +227,7 @@ export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analis
           <h2>{carregando ? "Lendo os investimentos…" : destaque ? selecionada?.categoria || destaque.grupo : "Nenhum tipo identificado"}</h2>
           <strong class="q9-spotlight-value">{!carregando && destaque ? brl(destaque.valor) : "—"}</strong>
           <p>{selecionada ? "contratados nesta categoria" : "contratados neste tipo de publicidade"}</p>
-          <div class="q9-share"><div class="q9-ring" style={{ background: `conic-gradient(#f03d94 ${Math.min(100, Math.max(0, destaque?.participacao || 0))}%, var(--theme-surface-raised,#343d58) 0)` }}><span>{!carregando ? percentual(destaque?.participacao ?? null) : "—"}</span></div><p>do investimento<br /><strong>em publicidade identificada</strong></p></div>
+          <div class="q9-share"><div class="q9-ring" style={{ background: `conic-gradient(var(--chart-pink,#f03d94) ${Math.min(100, Math.max(0, destaque?.participacao || 0))}%, var(--theme-surface-raised,#343d58) 0)` }}><span>{!carregando ? percentual(destaque?.participacao ?? null) : "—"}</span></div><p>do investimento<br /><strong>em publicidade identificada</strong></p></div>
           <div class="q9-spotlight-bottom"><span>Candidaturas</span><strong>{!carregando && destaque ? numero(destaque.candidaturas) : "—"}</strong></div>
           <small>Clique em uma palavra ou em um tipo abaixo para explorar o valor investido.</small>
         </section>
@@ -237,7 +237,7 @@ export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analis
         <div class="q9-card-heading"><div><span class="q9-eyebrow">INVESTIMENTO EM PERSPECTIVA</span><h2>Como os gastos se distribuem</h2><p>Participação de cada tipo no valor contratado em publicidade.</p></div><span class="q9-count">{dados?.grupos.length || 0} tipos</span></div>
         <div class="q9-rank-head"><span>Tipo de publicidade</span><span>Valor contratado</span><span>Participação</span></div>
         {!carregando && dados?.grupos.length ? dados.grupos.map((g, i) => <button key={g.grupo} class={`q9-rank-row ${foco?.grupo === g.grupo ? "active" : ""}`} aria-pressed={foco?.grupo === g.grupo} onClick={() => setFoco(foco?.grupo === g.grupo && !foco.categoria ? null : { grupo: g.grupo })}>
-          <span class="q9-rank-name"><small>{String(i + 1).padStart(2, "0")}</small><span>{g.grupo}<i class="q9-track"><b style={{ width: `${Math.max(0, 100 * g.valor / Math.max(1, dados.grupos[0].valor))}%`, background: i === 0 ? "#f03d94" : "#8f80c2" }} /></i></span></span><strong>{brl(g.valor)}</strong><span>{percentual(g.participacao)}</span>
+          <span class="q9-rank-name"><small>{String(i + 1).padStart(2, "0")}</small><span>{g.grupo}<i class="q9-track"><b style={{ width: `${Math.max(0, 100 * g.valor / Math.max(1, dados.grupos[0].valor))}%`, background: i === 0 ? "var(--chart-pink,#f03d94)" : "var(--chart-purple,#8f80c2)" }} /></i></span></span><strong>{brl(g.valor)}</strong><span>{percentual(g.participacao)}</span>
         </button>) : <div class="q9-rank-placeholder">{carregando ? "Carregando valores…" : "Os valores por tipo aparecerão aqui quando houver despesas identificadas."}</div>}
       </section>
 

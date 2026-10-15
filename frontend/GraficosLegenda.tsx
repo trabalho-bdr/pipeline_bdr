@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
-import { CORES_UF, corPartido } from "./coresEleitorais";
+import { coresUf, corPartido as corDoPartido } from "./coresEleitorais";
+import { useTema } from "./Tema";
 
 export type LinhaLegenda = { id_municipio: string; municipio: string; id_partido: string; partido: string; votos_legenda: number; votos_nominais: number };
 type Opcao = { ano: number; cargo: string };
@@ -21,6 +22,9 @@ const normalizarBusca = (valor: string) => valor.normalize("NFD").replace(/\p{Di
 const TAMANHO_PAGINA = 10;
 
 export function GraficosLegenda({ uf, mun, cargo, partidoGlobal, opcoes, linhas, carregando, onMunicipio, ufPorMunicipio, ufsDisponiveis, todosAnos, historicoMock, historicoExterno, erroHistoricoExterno = false, faixaSelecionada = null }: Props) {
+  const { tema } = useTema();
+  const CORES_UF = coresUf(tema);
+  const corPartido = (sigla: string) => corDoPartido(sigla, tema);
   const [historico, setHistorico] = useState<HistoricoAno[]>([]);
   const [erroHistorico, setErroHistorico] = useState(false);
   const [buscaMunicipio, setBuscaMunicipio] = useState("");

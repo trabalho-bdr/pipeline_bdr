@@ -1,7 +1,8 @@
 import { scaleLinear } from "d3-scale";
 import { useEffect, useMemo, useState } from "preact/hooks";
-import { CORES_UF } from "./coresEleitorais";
-import { AlternarTema } from "./Tema";
+import { coresUf } from "./coresEleitorais";
+import { paletaAnalises, type ModoCor } from "./paletaAnalises";
+import { AlternarTema, useTema } from "./Tema";
 import { Feat, Mapa } from "./Mapa";
 import {
   CARGOS_MUNICIPAIS, UFS_Q2, gerarMockMapaQ2, gerarMockPatrimonio, opcoesMockQ2,
@@ -22,8 +23,6 @@ type Props = {
 
 const ANOS = [2024, 2022, 2020, 2018];
 const CINZA_SEM_REGISTRO = "var(--theme-map-nodata,#2b2b31)";
-const CORES_INTENSIDADE = ["#735a9e", "#b54c9d", "#ff68a8"];
-const CORES_RAZAO = ["#4f7fe3", "#7d7099", "#ff68a8"];
 const MIN_DECIS = 30;
 const INDICADORES: { valor: Indicador; rotulo: string; curto: string }[] = [
   { valor: "mediana", rotulo: "Patrimônio mediano dos candidatos", curto: "Mediana · candidatos" },
@@ -60,23 +59,26 @@ function valorDe(r: LinhaTerritorio | undefined, ind: Indicador): number | null 
 const formatarValor = (v: number | null, ind: Indicador) => v == null ? "sem dado" : ind === "razao" ? `${num(v, 2)}×` : brlCompacto(v);
 
 /** Escala de cor: logarítmica (patrimônio, entre P5 e P95) ou divergente em torno de 1× (razão). */
-function criarEscala(valores: number[], ind: Indicador) {
+function criarEscala(valores: number[], ind: Indicador, tema: ModoCor) {
   if (!valores.length) return null;
+  const paleta = paletaAnalises(tema);
   if (ind === "razao") {
-    const s = scaleLinear<string>().domain([-1, 0, 1]).range(CORES_RAZAO).clamp(true);
+    const s = scaleLinear<string>().domain([-1, 0, 1]).range(paleta.razao).clamp(true);
     return { cor: (v: number) => s(Math.log2(v)), minimo: 0.5, maximo: 2 };
   }
   const logs = valores.map((v) => Math.log10(v + 1)).sort((a, b) => a - b);
   const q = (p: number) => logs[Math.min(logs.length - 1, Math.floor(p * (logs.length - 1)))];
   let lo = logs.length < 20 ? logs[0] : q(0.05), hi = logs.length < 20 ? logs[logs.length - 1] : q(0.95);
   if (hi - lo < 0.05) { lo -= 0.05; hi += 0.05; }
-  const s = scaleLinear<string>().domain([lo, (lo + hi) / 2, hi]).range(CORES_INTENSIDADE).clamp(true);
+  const s = scaleLinear<string>().domain([lo, (lo + hi) / 2, hi]).range(paleta.patrimonio).clamp(true);
   return { cor: (v: number) => s(Math.log10(v + 1)), minimo: Math.max(0, 10 ** lo - 1), maximo: 10 ** hi - 1 };
 }
 
 const escolhaInicial = (lista: OpcaoQ2[]) => lista.find((o) => o.ano === 2024 && o.cargo === "VEREADOR") ?? lista[0] ?? { ano: null, cargo: "" };
 
 export function PainelPatrimonio({ onAnalise, cat, ufsGeo, geoMun, siglas, nomes, municipiosBusca, erroGeo, uf, mun, onUf, onMun, onMunicipio }: Props) {
+  const { tema } = useTema();
+  const paleta = paletaAnalises(tema), CORES_UF = coresUf(tema);
   const [opcoes, setOpcoes] = useState<OpcoesQ2 | null>(null);
   const [sel, setSel] = useState<{ ano: number | null; cargo: string }>({ ano: null, cargo: "" });
   const [indicador, setIndicador] = useState<Indicador>("mediana");
@@ -155,8 +157,8 @@ export function PainelPatrimonio({ onAnalise, cat, ufsGeo, geoMun, siglas, nomes
   const munsDaUf = useMemo(() => uf && mapa ? mapa.municipios.filter((m) => m.uf === uf) : [], [mapa, uf]);
   const porMunicipio = useMemo(() => new Map(munsDaUf.map((m) => [m.id_municipio, m])), [munsDaUf]);
   const naoNulo = (v: number | null): v is number => v != null;
-  const escalaUfs = useMemo(() => criarEscala((mapa?.ufs ?? []).map((r) => valorDe(r, indicador)).filter(naoNulo), indicador), [mapa, indicador]);
-  const escalaMun = useMemo(() => criarEscala(munsDaUf.map((r) => valorDe(r, indicador)).filter(naoNulo), indicador), [munsDaUf, indicador]);
+  const escalaUfs = useMemo(() => criarEscala((mapa?.ufs ?? []).map((r) => valorDe(r, indicador)).filter(naoNulo), indicador, tema), [mapa, indicador, tema]);
+  const escalaMun = useMemo(() => criarEscala(munsDaUf.map((r) => valorDe(r, indicador)).filter(naoNulo), indicador, tema), [munsDaUf, indicador, tema]);
   const escalaAtiva = !uf || cargoEstadual ? escalaUfs : escalaMun;
 
   const cor = (id: string) => {  // município; nos cargos estaduais o estado inteiro tem a cor da UF
@@ -204,7 +206,7 @@ export function PainelPatrimonio({ onAnalise, cat, ufsGeo, geoMun, siglas, nomes
   const razaoSel = valorDe(linhaSel, "razao");
 
   const legendaMapa = <div class="legenda"><strong>{rotuloIndicador(indicador)} · {sel.ano ?? "—"}</strong>
-    <div class="barra" style={{ background: `linear-gradient(90deg, ${(indicador === "razao" ? CORES_RAZAO : CORES_INTENSIDADE).join(", ")})` }} />
+    <div class="barra" style={{ background: `linear-gradient(90deg, ${(indicador === "razao" ? paleta.razao : paleta.patrimonio).join(", ")})` }} />
     <span>{escalaAtiva ? indicador === "razao" ? "0,5× → 2×" : `${brlCompacto(escalaAtiva.minimo)} → ${brlCompacto(escalaAtiva.maximo)}` : "Aguardando dados"}</span>
     <span>{indicador === "razao" ? "Acima de 1×, os eleitos declaram mais que os não eleitos." : `Escala logarítmica, relativa a ${!uf || cargoEstadual ? "estas UFs" : "estes municípios"}.`}</span>
     <span><i style={{ background: CINZA_SEM_REGISTRO }} /> sem dados neste recorte</span></div>;

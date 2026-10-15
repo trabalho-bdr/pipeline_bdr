@@ -2,6 +2,8 @@
 
 ## Modos claro e escuro
 
+As conversões de cores, escalas dos mapas e critérios de contraste estão documentados em [PALETA.md](PALETA.md). Para verificar as paletas, execute `npm.cmd run test:cores` em `frontend`.
+
 O seletor com sol e lua fica no canto superior direito do cabeçalho de todas as análises. Clique ou use Tab e Espaço/Enter para alternar. O modo escuro preserva a paleta original e é o padrão; o modo claro usa superfícies claras, textos contrastantes e os mesmos destaques em rosa, roxo e azul. A preferência é salva localmente no navegador, sincronizada entre abas e aplicada antes da renderização para evitar um flash do tema errado. A escolha também funciona sem armazenamento disponível, mas não persiste após fechar/recarregar. A animação respeita a opção do sistema de reduzir movimento.
 
 As cores de fundo, texto, bordas e estados usam variáveis em `temas.css`, com as cores originais como fallback no modo escuro. As cores de séries de dados continuam identificando as mesmas categorias e partidos. Alterar o tema não muda filtros nem refaz consultas à API.

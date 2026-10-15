@@ -23,9 +23,17 @@
   --theme-border-strong:#a5b3ce;
   --theme-shadow:#24314d16;
   --theme-map-outside:#e3e8f1;
-  --theme-map-nodata:#c9d2e1;
-  --theme-map-undefined:#cbbfdc;
+  --theme-map-nodata:#7d8ba3;
+  --theme-map-undefined:#8f74ae;
+  --theme-map-covered:#4058a0;
+  --theme-map-selection:#172b4a;
   --theme-map-stroke:#f9fbff;
+  --chart-pink:#ad276e;
+  --chart-purple:#7052a0;
+  --chart-blue:#315fa5;
+  --chart-cyan:#277799;
+  --chart-teal:#237b73;
+  --chart-grid:#b9c3d5;
   --q9-word-1:#a42a69;
   --q9-word-2:#7048a1;
   --q9-word-3:#b51d70;
@@ -34,7 +42,12 @@
   --q9-word-6:#6251a0;
 }
 
-.app-header-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:14px; margin-left:auto; }
+:root[data-theme="light"] .q9-evo-stack span + span { border-left:1px solid #ffffff; }
+
+.app-header-main { min-width:0; }
+.app-header-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:14px; margin-left:auto; min-width:0; max-width:100%; }
+.app-header-actions .selected-location { display:grid; gap:4px; max-width:100%; text-align:right; font-size:12px; }
+.app-header-actions .selected-location>span { color:var(--theme-text-muted,#aeb8d0); font-size:9px; letter-spacing:.08em; }
 .theme-toggle { position:relative; display:inline-flex; align-items:center; justify-content:center; flex:none; width:134px; height:42px; padding:5px 12px 5px 47px; border:1px solid #66567e; border-radius:24px; background:#1c2136; color:#e9ddfb; cursor:pointer; box-shadow:inset 0 1px 3px #0002; isolation:isolate; }
 .theme-toggle:hover { border-color:#c28dd1; }.theme-toggle:focus-visible { outline:3px solid #b680ca; outline-offset:4px; }
 .theme-toggle-thumb { position:absolute; top:4px; left:4px; display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:#e6dcf6; color:#564274; box-shadow:0 2px 5px #0003; transform:translateX(0); transition:transform .3s cubic-bezier(.22,.8,.25,1),background-color .3s; }
@@ -43,6 +56,7 @@
 :root[data-theme="light"] .theme-toggle:hover { border-color:#9062a5; }
 :root[data-theme="light"] .theme-toggle-thumb { transform:translateX(92px); background:#ffffff; color:#966b22; box-shadow:0 2px 6px #42507324; }
 @media(max-width:700px) {
+  .layout .app-header .app-header-main,.layout .app-header .app-filter-row,.layout .app-header .mock-data-banner { width:100%; max-width:100%; min-width:0; }
   .app-header-main { flex-direction:row; flex-wrap:wrap; align-items:flex-start; }
   .app-header-actions { gap:10px; align-self:flex-start; }
   .app-header-actions .selected-location { text-align:right; }

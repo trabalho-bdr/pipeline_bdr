@@ -1,5 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import "./evolucao-publicidade.css";
+import { useTema } from "./Tema";
+import { paletaAnalises } from "./paletaAnalises";
 
 type Candidato = { id_candidato: string; nome: string };
 type Partido = { id_partido: string; sigla: string; nome: string };
@@ -17,7 +19,6 @@ const dinheiro = (n: number) => n.toLocaleString("pt-BR", { style: "currency", c
 const nfmt = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
 const pct = (n: number | null | undefined) => n == null ? "—" : `${nfmt(n)}%`;
 const pontos = (n: number | null | undefined) => n == null ? "—" : `${n > 0 ? "+" : ""}${nfmt(n)} p.p.`;
-const cores = ["#f38bc1", "#c2adf1", "#f03d94", "#a4b7e6", "#dc76b3", "#9489d9", "#d3a5d8", "#7186b6"];
 async function get<T>(url: string, signal: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal });
   if (!response.ok) {
@@ -42,6 +43,8 @@ function BadgeResultado({ ano }: { ano: Ano }) {
 export function EvolucaoPublicidade({ cargo, uf, criterio, candidato, atualizacao }: {
   cargo: string; uf: string; criterio: string; candidato: Candidato | null; atualizacao: number;
 }) {
+  const { tema } = useTema();
+  const cores = paletaAnalises(tema).publicidade;
   const [modo, setModo] = useState<"partido" | "candidato">(candidato ? "candidato" : "partido");
   const [partidos, setPartidos] = useState<Partido[]>([]);
   const [partido, setPartido] = useState("");

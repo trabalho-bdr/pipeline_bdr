@@ -19,8 +19,8 @@ export function GraficosLegendaMock() {
       <article class="dash-chart-card mock-chart-wide"><h3>Evolução entre eleições</h3><p>Mesmo cargo ao longo dos anos · {mockLegenda.cargo}</p>
         <svg class="mock-line-chart" viewBox="0 0 530 215" role="img" aria-label="Gráfico ilustrativo da evolução dos votos de legenda de 2010 a 2022">
           {[30, 76, 123, 170].map((y) => <line key={y} x1="42" x2="482" y1={y} y2={y} class="mock-grid-line" />)}
-          <polyline points={linha} fill="none" stroke="#ef4da3" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" />
-          {serie.map((item, indice) => <g key={item.ano}><circle cx={pontos[indice].x} cy={pontos[indice].y} r="5" fill="#ef4da3" stroke="#292d49" stroke-width="3" /><text x={pontos[indice].x} y={pontos[indice].y - 13} text-anchor="middle" class="mock-value">{br(item.votosLegenda)}</text><text x={pontos[indice].x} y="198" text-anchor="middle" class="mock-year">{item.ano}</text></g>)}
+          <polyline points={linha} fill="none" stroke="var(--chart-pink,#ef4da3)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" />
+          {serie.map((item, indice) => <g key={item.ano}><circle cx={pontos[indice].x} cy={pontos[indice].y} r="5" fill="var(--chart-pink,#ef4da3)" stroke="var(--theme-surface,#292d49)" stroke-width="3" /><text x={pontos[indice].x} y={pontos[indice].y - 13} text-anchor="middle" class="mock-value">{br(item.votosLegenda)}</text><text x={pontos[indice].x} y="198" text-anchor="middle" class="mock-year">{item.ano}</text></g>)}
         </svg>
       </article>
       <article class="dash-chart-card"><h3>Legenda x nominal por partido</h3><p>Composição dos votos em cada partido fictício</p><div class="mock-stack-legend"><span><i class="mock-legend-pink" /> Legenda</span><span><i class="mock-legend-muted" /> Nominal</span></div>

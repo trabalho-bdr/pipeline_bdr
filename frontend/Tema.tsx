@@ -4,6 +4,7 @@ import { useContext, useEffect, useLayoutEffect, useState } from "preact/hooks";
 type Tema = "dark" | "light";
 const chave = "bdr-tema";
 const ContextoTema = createContext<{ tema: Tema; alternar: () => void }>({ tema: "dark", alternar: () => {} });
+export const useTema = () => useContext(ContextoTema);
 
 export function ProvedorTema({ children }: { children: ComponentChildren }) {
   const [tema, setTema] = useState<Tema>(() => document.documentElement.dataset.theme === "light" ? "light" : "dark");

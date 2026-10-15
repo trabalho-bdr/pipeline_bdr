@@ -4,10 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { GraficosLegenda, HistoricoAno, resumirLegendaPorPartido } from "./GraficosLegenda";
 import { Feat, Mapa } from "./Mapa";
 import { gerarLinhasMockLegenda, opcoesMockLegenda } from "./mockLegenda";
-import { CORES_UF, corPartido } from "./coresEleitorais";
+import { coresUf, corPartido as corDoPartido } from "./coresEleitorais";
+import { paletaAnalises } from "./paletaAnalises";
 import { PainelPublicidade } from "./PainelQ9";
 import { PainelPatrimonio } from "./PainelPatrimonio";
-import { AlternarTema } from "./Tema";
+import { AlternarTema, useTema } from "./Tema";
 
 type Cat = { ufs: { cod: string; sigla: string; nome: string }[]; municipios: Record<string, { id: string; nome: string }[]> };
 type Reg = Record<string, number | string | null>;
@@ -21,7 +22,6 @@ const ANOS_CARGO_LEGENDA: Record<string, number[]> = { "Deputado Federal": [2018
 const SEM_MUNICIPIOS: { id: string; nome: string }[] = [];
 const SEM_OPCOES_LEGENDA: OpcaoLegenda[] = [];
 const CINZA_SEM_REGISTRO = "var(--theme-map-nodata,#2b2b31)", ROXO_SEM_VALOR = "var(--theme-map-undefined,#4a3d5c)";
-const CORES_INTENSIDADE_UF = ["#56a6c3", "#8b79bb", "#e773ae"];
 
 const json = async <T,>(u: string, signal?: AbortSignal): Promise<T> => {
   const r = await fetch(u, { signal });
@@ -45,6 +45,10 @@ const somarLinhasLegenda = (linhas: LinhaLegenda[]): LinhaLegenda[] => {
 };
 
 export function App() {
+  const { tema } = useTema();
+  const paleta = paletaAnalises(tema), CORES_UF = coresUf(tema);
+  const CORES_INTENSIDADE_UF = paleta.intensidade;
+  const corPartido = (sigla: string) => corDoPartido(sigla, tema);
   const [analise, setAnalise] = useState<"abstencao" | "legenda" | "publicidade" | "patrimonio">("abstencao");
   const [todosAnosLegenda, setTodosAnosLegenda] = useState(false);
   const [mostrarMock, setMostrarMock] = useState(false);
@@ -203,7 +207,7 @@ export function App() {
   const valido = dados && dados.uf === uf && dados.ano === ano ? dados : null;
   const valores = Object.values(valido?.municipios ?? {}).map((r) => r.abstencao_pct).filter((v): v is number => typeof v === "number");
   const [lo, hi] = [Math.min(...valores), Math.max(...valores)];
-  const escala = valores.length ? scaleLinear<string>().domain([lo, hi]).range(["#2f4fbf", "#ff5a4d"]) : null;
+  const escala = valores.length ? scaleLinear<string>().domain([lo, hi]).range(paleta.abstencao) : null;
   const partidos = [...new Map(linhasFonte.map((r) => [r.id_partido, r.partido])).entries()].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
   const linhasAtivas = linhasFonte.filter((r) => !partido || r.id_partido === partido);
   const partidosComRegistroMapa = [...new Set(linhasAtivas.filter((r) => (!mun || r.id_municipio === mun) && r.votos_legenda > 0).map((r) => r.partido))].sort((a, b) => a.localeCompare(b, "pt-BR"));

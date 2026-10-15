@@ -1,4 +1,5 @@
 /** Paleta única dos partidos em mapas, rankings e séries. */
+import { corParaFundoClaro, type ModoCor } from "./paletaAnalises.ts";
 export const CORES_UF: Record<string, string> = {
   CE: "#59a6c8",
   MA: "#e064a2",
@@ -10,11 +11,21 @@ export const CORES_UF: Record<string, string> = {
 
 const coresAtribuidas = new Map<string, string>([["PT", "hsl(350 52% 54%)"], ["PL", "hsl(220 49% 57%)"]]);
 const coresUsadas = new Set(coresAtribuidas.values());
+const coresUfClaras = Object.fromEntries(Object.entries(CORES_UF).map(([uf, cor]) => [uf, corParaFundoClaro(cor)]));
+export const coresUf = (tema: ModoCor) => tema === "light" ? coresUfClaras : CORES_UF;
+const coresPartidosClaras = new Map<string, string>();
 
-export function corPartido(partido: string): string {
+export function corPartido(partido: string, tema: ModoCor = "dark"): string {
+  const original = corPartidoOriginal(partido);
+  if (tema === "dark") return original;
+  if (!coresPartidosClaras.has(original)) coresPartidosClaras.set(original, corParaFundoClaro(original));
+  return coresPartidosClaras.get(original)!;
+}
+
+function corPartidoOriginal(partido: string): string {
   const sigla = partido.trim().toUpperCase();
-  if (sigla === "13") return corPartido("PT");
-  if (sigla === "22") return corPartido("PL");
+  if (sigla === "13") return corPartidoOriginal("PT");
+  if (sigla === "22") return corPartidoOriginal("PL");
   const atribuida = coresAtribuidas.get(sigla);
   if (atribuida) return atribuida;
   let hash = 0;
