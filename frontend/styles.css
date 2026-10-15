@@ -159,7 +159,7 @@ body { background:var(--bg); color:#f1f2f9; }
 .legenda-trend-series i { display:inline-block; width:9px; height:9px; flex:none; border-radius:50%; }
 .state-compare-caption { display:block; margin-top:12px; color:#bdc9e3; font-size:11px; }
 .global-party-filter>span { display:flex; align-items:baseline; gap:5px; }.global-party-filter small { color:#aeb9d3; font-size:9px; font-weight:500; }
-.legenda-municipios-tabela { display:grid; max-height:225px; overflow:auto; }.legenda-municipios-cabecalho,.legenda-municipios-tabela button { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(70px,1fr) 75px 75px; align-items:center; gap:10px; width:100%; padding:7px 8px; text-align:left; font-size:11px; }.legenda-municipios-cabecalho { color:#a9b4d2; border-bottom:1px solid #505773; }.legenda-municipios-tabela button { border:0; border-bottom:1px solid #3b415c; border-radius:0; background:transparent; color:#e9edfa; cursor:pointer; }.legenda-municipios-tabela button:hover,.legenda-municipios-tabela button.selecionado { background:#454166; }.legenda-municipios-tabela button span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.legenda-municipios-tabela button strong { font-weight:600; }
+.legenda-municipios-tabela { display:grid; max-height:225px; overflow:auto; }.legenda-municipios-cabecalho,.legenda-municipios-tabela button { display:grid; grid-template-columns:minmax(0,1fr) 90px 80px; align-items:center; gap:10px; width:100%; padding:7px 8px; text-align:left; font-size:11px; }.legenda-municipios-cabecalho { color:#a9b4d2; border-bottom:1px solid #505773; }.legenda-municipios-tabela button { border:0; border-bottom:1px solid #3b415c; border-radius:0; background:transparent; color:#e9edfa; cursor:pointer; }.legenda-municipios-tabela button:hover,.legenda-municipios-tabela button.selecionado { background:#454166; }.legenda-municipios-tabela button span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.legenda-municipios-tabela button strong { font-weight:600; }
 .legenda-municipios-tabela button span:first-child small { color:#aeb9d3; font-size:10px; }
 .mapa-busca-resultados .municipio-resultado-nome { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .legenda-municipios-tabela .municipio-tabela-nome { display:flex; align-items:center; gap:6px; min-width:0; }
@@ -204,10 +204,12 @@ body { background:var(--bg); color:#f1f2f9; }
 .mapa-municipio-selecionado strong { color:#fff; font-size:14px; line-height:1.25; overflow-wrap:anywhere; }
 .layout>.mapa-com-municipio .dica { top:82px; }
 .analysis-legenda .dash-charts .dash-chart-card { height:330px; }
-.busca-ranking-partido { width:100%; height:36px; margin:0 0 10px; padding:7px 11px; border:1px solid #5a6387; border-radius:6px; background:#20263d; color:#f3f5fc; font-size:12px; }
+.dash-card-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+.dash-card-heading>div { min-width:0; }.dash-card-heading p { margin:0; }
+.busca-ranking-partido { width:min(280px,40%); height:36px; flex:none; margin:0; padding:7px 11px; border:1px solid #5a6387; border-radius:6px; background:#20263d; color:#f3f5fc; font-size:12px; }
 .busca-ranking-partido::placeholder { color:#aab8d3; }
 .busca-ranking-partido:focus-visible { outline:2px solid #f0a3d2; outline-offset:1px; }
-.dash-ranking-partidos { max-height:178px; overflow-y:auto; scrollbar-gutter:stable; }
+.dash-ranking-partidos { max-height:220px; overflow-y:auto; scrollbar-gutter:stable; }
 .dash-distribution-horizontal { display:grid; gap:10px; }
 .dash-distribution-row { display:grid; grid-template-columns:58px minmax(0,1fr) 54px; align-items:center; gap:10px; min-height:25px; color:#d5ddf0; font-size:12px; font-variant-numeric:tabular-nums; }
 .dash-distribution-row>i { display:block; height:12px; overflow:hidden; border-radius:6px; background:#1d243b; }
@@ -229,7 +231,5 @@ html, .lista, .dash-ranking, .legenda-municipios-tabela, .legenda-trend-series, 
 .legenda-municipios-tabela button.selecionado { box-shadow:inset 3px 0 #f15aab; }
 .legenda-municipios-tabela button.fora-do-topo { margin-top:6px; border-top:1px dashed #747b9a; }
 .legenda-municipios-cabecalho span:nth-last-child(-n+2),.legenda-municipios-tabela button>strong,.legenda-municipios-tabela button>span:last-child { text-align:right; font-variant-numeric:tabular-nums; }
-.municipio-votos-barra { display:block; height:9px; overflow:hidden; border-radius:6px; background:#1b2238; }
-.municipio-votos-barra b { display:block; height:100%; border-radius:6px; background:linear-gradient(90deg,#aa71cc,#ed58ac); }
-.legenda-municipios-tabela button.selecionado .municipio-votos-barra b { background:#f174bb; }
-@media(max-width:530px) { .legenda-municipios-cabecalho,.legenda-municipios-tabela button { grid-template-columns:minmax(0,1fr) 70px 64px; gap:6px; }.legenda-municipios-cabecalho span:nth-child(2),.municipio-votos-barra { display:none; }.legenda-proporcao-valores strong { font-size:16px; } }
+@media(max-width:700px) { .dash-card-heading { flex-direction:column; gap:10px; }.busca-ranking-partido { width:100%; }.dash-ranking-partidos { max-height:170px; } }
+@media(max-width:530px) { .legenda-municipios-cabecalho,.legenda-municipios-tabela button { grid-template-columns:minmax(0,1fr) 70px 64px; gap:6px; }.legenda-proporcao-valores strong { font-size:16px; } }
