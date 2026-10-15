@@ -4,13 +4,13 @@ Questão 3:
 "Como características socioeconômicas dos municípios se relacionam com a distribuição
 dos votos entre partidos e com a taxa de abstenção?"
 
-Escopo temporal: 2022 e 2024.
+Escopo temporal: 2018, 2020, 2022 e 2024.
 Escopo de membros: cada membro é responsável por exatamente 2 UFs.
 Fontes: Boletins de Urna (TSE), Comparecimento e Abstenção / Detalhe da Votação (TSE),
         Indicadores do IBGE (Localidades, Censo 2022, PIB) e IDHM (Atlas Brasil).
 """
 
-ANOS_Q3 = [2022, 2024]
+ANOS_Q3 = [2018, 2020, 2022, 2024]
 
 # Divisão definitiva para a Questão 3 (cada membro com exatamente 2 UFs):
 # Membros 2 e 3 definidos; Membros 1 e 4 com estrutura editável para o grupo.
@@ -72,11 +72,14 @@ def montar_escopo(membro=None, ufs=None, anos=None, incluir_br=False):
             anos_base = sorted(set(anos or ANOS_Q3))
         rotulo = "recorte_" + "-".join(siglas)
 
-    # Para a Q3, baixamos apenas os Boletins de Urna e o Detalhe de Votação (comparecimento/abstenção)
-    plano = {
-        "boletim_urna": anos_base,
-        "detalhe_votacao_munzona": anos_base,
-    }
+    # 2018/2020 têm votação partidária própria; 2022/2024 usam BUweb.
+    anos_partido = [ano for ano in anos_base if ano in (2018, 2020)]
+    anos_bu = [ano for ano in anos_base if ano in (2022, 2024)]
+    plano = {"detalhe_votacao_munzona": anos_bu}
+    if anos_partido:
+        plano["votacao_partido_munzona"] = anos_partido
+    if anos_bu:
+        plano["boletim_urna"] = anos_bu
 
     return {
         "rotulo": rotulo,

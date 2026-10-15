@@ -52,9 +52,12 @@ class BoletinsTest(unittest.TestCase):
         for membro_id in sorted(MEMBROS):
             escopo = montar_escopo(membro=membro_id)
             self.assertEqual(len(escopo["ufs"]), 2, f"Membro {membro_id} não tem exatamente 2 UFs")
-            self.assertEqual(escopo["anos"], [2022, 2024])
-            self.assertEqual(set(escopo["plano"].keys()), {"boletim_urna", "detalhe_votacao_munzona"})
+            self.assertEqual(escopo["anos"], [2018, 2020, 2022, 2024])
+            self.assertEqual(set(escopo["plano"].keys()), {
+                "boletim_urna", "votacao_partido_munzona", "detalhe_votacao_munzona"
+            })
             self.assertEqual(escopo["plano"]["boletim_urna"], [2022, 2024])
+            self.assertEqual(escopo["plano"]["votacao_partido_munzona"], [2018, 2020])
             self.assertEqual(escopo["plano"]["detalhe_votacao_munzona"], [2022, 2024])
 
     def test_escopo_nao_contem_arquivos_outras_perguntas(self):

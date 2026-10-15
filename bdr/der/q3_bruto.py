@@ -10,6 +10,7 @@ import duckdb
 
 from bdr.boletins import planejar
 from bdr.download import baixar
+from bdr.extracao import extrair_por_uf
 from bdr.esquema import criar_tabelas
 from bdr.ibge import baixar_dados_ibge, carregar_dados_socioeconomicos, garantir_de_para_oficial
 from bdr.transformacao import _aplicar_de_para
@@ -26,6 +27,79 @@ def _numero(valor):
 def _valor(linha, colunas, nome):
     indice = colunas.get(nome)
     return linha[indice].strip() if indice is not None and indice < len(linha) else ""
+
+
+def _lit(valor):
+    return "'" + str(valor).replace("'", "''") + "'"
+
+
+def _ident(valor):
+    return '"' + str(valor).replace('"', '""') + '"'
+
+
+def _campo(colunas, *nomes, padrao="NULL"):
+    for nome in nomes:
+        if nome in colunas:
+            return f"nullif(trim({_ident(colunas[nome])}), '')"
+    return padrao
+
+
+def _carregar_votacao_partido(con, caminho):
+    """Carrega votos nominais e de legenda dos layouts históricos 2018/2020."""
+    fonte = f"read_csv({_lit(Path(caminho).resolve().as_posix())}, delim=';', quote='\"', escape='\"', header=true, all_varchar=true)"
+    colunas = {r[0].upper(): r[0] for r in con.execute(f"DESCRIBE SELECT * FROM {fonte}").fetchall()}
+    ano = _campo(colunas, "ANO_ELEICAO", "AA_ELEICAO")
+    turno = _campo(colunas, "NR_TURNO", "NUM_TURNO", padrao="'1'")
+    uf = _campo(colunas, "SG_UF", "SIGLA_UF")
+    eleicao = _campo(colunas, "CD_ELEICAO", "CODIGO_ELEICAO")
+    cargo = _campo(colunas, "CD_CARGO", "CODIGO_CARGO")
+    nome_cargo = _campo(colunas, "DS_CARGO", "DESCRICAO_CARGO")
+    municipio = _campo(colunas, "CD_MUNICIPIO", "CODIGO_MUNICIPIO", "SG_UE")
+    nome_municipio = _campo(colunas, "NM_MUNICIPIO", "NOME_MUNICIPIO")
+    partido = _campo(colunas, "NR_PARTIDO", "NUMERO_PARTIDO")
+    sigla = _campo(colunas, "SG_PARTIDO", "SIGLA_PARTIDO")
+    nome_partido = _campo(colunas, "NM_PARTIDO", "NOME_PARTIDO")
+    nominais = _campo(colunas, "QT_VOTOS_NOMINAIS", "QT_VOTOS_NOMINAIS_VALIDOS", padrao="'0'")
+    legenda = _campo(colunas, "QT_VOTOS_LEGENDA", "QT_VOTOS_LEGENDA_VALIDOS", padrao="'0'")
+    con.execute(f"""
+        INSERT INTO municipio (cod_tse, id_municipio, nome, uf, regiao)
+        SELECT lpad(trim({municipio}), 5, '0'), NULL, max({nome_municipio}), max(upper({uf})), NULL
+        FROM {fonte}
+        WHERE regexp_matches(trim({municipio}), '^[0-9]+$')
+        GROUP BY 1
+        ON CONFLICT DO NOTHING
+    """)
+    con.execute(f"""
+        INSERT INTO partido (numero, sigla, nome)
+        SELECT try_cast({partido} AS INTEGER), upper({sigla}), max({nome_partido})
+        FROM {fonte}
+        WHERE try_cast({partido} AS INTEGER) > 0 AND {sigla} IS NOT NULL
+        GROUP BY 1, 2
+        ON CONFLICT DO NOTHING
+    """)
+    con.execute(f"""
+        INSERT INTO eleicao (ano, cd_eleicao, turno, ds_eleicao, dt_eleicao)
+        SELECT try_cast({ano} AS INTEGER), {eleicao}, try_cast({turno} AS SMALLINT),
+               max({_campo(colunas, 'DS_ELEICAO', 'DESCRICAO_ELEICAO')}),
+               min(coalesce(try_strptime({_campo(colunas, 'DT_ELEICAO', 'DATA_ELEICAO')}, '%d/%m/%Y')::DATE,
+                            try_strptime({_campo(colunas, 'DT_ELEICAO', 'DATA_ELEICAO')}, '%Y-%m-%d')::DATE))
+        FROM {fonte}
+        GROUP BY 1, 2, 3
+        ON CONFLICT DO NOTHING
+    """)
+    con.execute(f"""
+        INSERT INTO votos_partido_municipio
+        SELECT try_cast({ano} AS INTEGER), {eleicao}, {cargo}, max({nome_cargo}),
+               try_cast({turno} AS SMALLINT), try_cast({partido} AS INTEGER), upper({sigla}),
+               lpad(trim({municipio}), 5, '0'), NULL,
+               sum(coalesce(try_cast({nominais} AS BIGINT), 0)),
+               sum(coalesce(try_cast({legenda} AS BIGINT), 0))
+        FROM {fonte}
+        WHERE try_cast({partido} AS INTEGER) > 0
+          AND regexp_matches(trim({municipio}), '^[0-9]+$')
+        GROUP BY 1, 2, 3, 5, 6, 7, 8
+        ON CONFLICT DO NOTHING
+    """)
 
 
 def _carregar_bu(con, zip_path, recurso):
@@ -123,11 +197,24 @@ def processar(ufs, anos, banco, trabalho, planilhas_idhm="planilhas",
     con = duckdb.connect(str(banco))
     try:
         criar_tabelas(con)
-        for recurso in planejar(ufs, anos, turnos=[1]):
-            zip_path = trabalho / "zips" / f"{recurso['nome']}.zip"
-            baixar(recurso["url"], zip_path)
-            _carregar_bu(con, zip_path, recurso)
-            zip_path.unlink()  # ZIP temporário já processado com sucesso
+        anos_historicos = [ano for ano in anos if ano in (2018, 2020)]
+        for ano in anos_historicos:
+            nome_zip = f"votacao_partido_munzona_{ano}"
+            zip_path = trabalho / "zips" / f"{nome_zip}.zip"
+            url = f"https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_partido_munzona/{nome_zip}.zip"
+            baixar(url, zip_path)
+            partes = {"votacao_partido_munzona": f"votacao_partido_munzona_{{ano}}_{{uf}}"}
+            arquivos, _ = extrair_por_uf(zip_path, trabalho / "raw", ano, partes, ufs)
+            for arquivo in arquivos:
+                _carregar_votacao_partido(con, arquivo)
+            zip_path.unlink()
+        anos_bu = [ano for ano in anos if ano in (2022, 2024)]
+        if anos_bu:
+            for recurso in planejar(ufs, anos_bu, turnos=[1]):
+                zip_path = trabalho / "zips" / f"{recurso['nome']}.zip"
+                baixar(recurso["url"], zip_path)
+                _carregar_bu(con, zip_path, recurso)
+                zip_path.unlink()  # ZIP temporário já processado com sucesso
         raw = trabalho / "raw"
         fontes = trabalho / "fontes"
         baixar_dados_ibge(ufs, raw)

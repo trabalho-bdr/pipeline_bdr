@@ -14,7 +14,7 @@ from bdr.trajetoria.config import ANOS_TRAJETORIA
 
 
 UFS_PADRAO = ("CE", "MA", "MS", "RJ", "RN", "RS")
-Q3_ANOS = (2022, 2024)
+Q3_ANOS = (2018, 2020, 2022, 2024)
 Q10_ANOS = tuple(ANOS_TRAJETORIA)
 SAIDA_PADRAO = Path("dados_bdr/saida/pipeline_bdr_der_completo_v2.duckdb")
 
