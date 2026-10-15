@@ -153,42 +153,40 @@ body { background:var(--bg); color:#f1f2f9; }
 .legenda-series-lista { display:flex; flex-wrap:wrap; gap:8px 14px; max-height:160px; overflow-y:auto; margin-top:12px; color:#d6e0f2; font-size:11px; }
 .legenda-series-lista span { display:inline-flex; align-items:center; gap:5px; }
 .legenda-series-lista i { width:9px; height:9px; border-radius:50%; flex:none; }
-.legenda-history-controls { display:flex; flex-wrap:wrap; gap:6px; margin:16px 0; }
-.legenda-history-controls button { cursor:pointer; border-color:#4a5273; background:#222940; color:#cdd7ed; }
-.legenda-history-controls button[aria-pressed=true] { background:#464e77; color:#fff; border-color:#929bd1; }
-.legenda-history-description { color:#b8c7e1; font-size:12px; }
-.legenda-variation-list { display:grid; gap:6px; max-height:380px; overflow:auto; padding-right:5px; }
-.legenda-variation-row { display:grid; grid-template-columns:90px 125px minmax(90px,1fr) 95px; align-items:center; gap:10px; min-height:27px; font-size:11px; }
-.legenda-variation-row strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.legenda-variation-row>span { text-align:right; font-variant-numeric:tabular-nums; }
-.legenda-variation-years { color:#c9d5ea; white-space:nowrap; }
-.legenda-variation-delta { color:#f3f6ff; font-weight:600; white-space:nowrap; }
-.legenda-variation-head { display:grid; grid-template-columns:90px 125px minmax(90px,1fr) 95px; gap:10px; padding:3px 0 8px; color:#aebbd4; font-size:10px; font-weight:700; }
-.legenda-variation-head span:nth-child(2) { grid-column:2/4; }
-.legenda-variation-head span:last-child { text-align:right; }
-.legenda-variation-key { display:flex; flex-wrap:wrap; gap:7px 16px; margin:4px 0 15px; color:#c8d3e8; font-size:11px; }
-.legenda-variation-key span { display:inline-flex; align-items:center; gap:5px; }
-.legenda-variation-key i { width:12px; height:8px; border-radius:2px; }
-.legenda-variation-key .subiu { background:#58c9c9; }.legenda-variation-key .caiu { background:#dc75ad; }
-.legenda-variation-row.selecionado,.dash-rank-row.selecionado { background:#3b4263; box-shadow:inset 3px 0 #e773ae; }
-.legenda-variation-track { position:relative; height:14px; border-radius:3px; background:#20263c; }
-.legenda-variation-track:after { content:""; position:absolute; left:50%; top:-3px; bottom:-3px; width:1px; background:#929cb8; }
-.legenda-variation-track i { position:absolute; top:2px; height:10px; border-radius:2px; }
-.legenda-variation-track .subiu { background:#58c9c9; }.legenda-variation-track .caiu { background:#dc75ad; }.legenda-variation-track .estavel { background:#9da8bd; }
-.legenda-show-more { margin-top:10px; cursor:pointer; border:0; background:transparent; color:#8fd8ec; font-size:12px; }
-.legenda-line-options { display:flex; flex-wrap:wrap; align-items:start; gap:12px; }
+.dash-rank-row.selecionado { background:#3b4263; box-shadow:inset 3px 0 #e773ae; }
+.legenda-show-more { cursor:pointer; border:0; background:transparent; color:#8fd8ec; font-size:12px; }
+.party-ranking-card { display:flex; flex-direction:column; overflow:hidden; }
+.party-ranking-card .dash-ranking-partidos { min-height:0; flex:1 1 auto; }
+.party-ranking-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; flex:none; margin:10px -17px -17px; padding:9px 17px; border-top:1px solid #454b69; background:#292e47; }
+.party-ranking-footer>span { color:#9fabc7; font-size:10px; }
+.party-ranking-footer .legenda-show-more { padding:3px 0; font-weight:600; }
+.legenda-line-options { display:flex; flex-wrap:wrap; align-items:end; gap:10px; padding:12px; border:1px solid #414966; border-radius:8px; background:#282d46; }
 .legenda-line-options>label { display:grid; gap:5px; color:#b9c7e0; font-size:11px; }
-.legenda-party-options { display:flex; flex-wrap:wrap; gap:5px 12px; max-height:105px; overflow:auto; flex:1 1 380px; }
-.legenda-party-options label { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; font-size:11px; cursor:pointer; }
-.legenda-party-options input { margin:0; }.legenda-party-options i { width:8px; height:8px; border-radius:50%; }
-.party-ranking-controls { display:flex; flex-wrap:wrap; gap:6px; }.party-ranking-controls select { height:36px; font-size:11px; }
+.legenda-line-options select { min-width:180px; height:35px; }
+.legenda-reset-series { height:35px; margin-left:auto; cursor:pointer; border-color:#56617f; background:#20263c; color:#cbd5e9; }
+.legenda-selected-series { display:flex; flex-wrap:wrap; gap:7px; margin:10px 0 0; }
+.legenda-method-note { margin:8px 2px 0 !important; color:#cbd5e9 !important; font-size:10px !important; }
+.legenda-comparison-notice { margin:7px 2px 0 !important; color:#b7c3dc !important; font-size:10px !important; }
+.legenda-selected-series button { display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border:1px solid #505a78; border-radius:999px; background:#222940; color:#e5e9f5; font-size:11px; cursor:pointer; }
+.legenda-selected-series button:hover { border-color:#92a0c7; background:#343c5b; }
+.legenda-selected-series i,.legenda-trend-summary i { width:9px; height:9px; flex:none; border-radius:50%; }
+.legenda-selected-series span { color:#9fabc7; font-size:15px; line-height:10px; }
+.legenda-trend-summary { display:grid; gap:1px; max-width:760px; margin:0 auto; overflow:hidden; border:1px solid #424b68; border-radius:7px; background:#424b68; }
+.legenda-trend-summary>div { display:grid; grid-template-columns:minmax(90px,1fr) 90px 18px 90px 90px; align-items:center; gap:8px; padding:7px 10px; background:#282d46; color:#dce3f2; font-size:11px; font-variant-numeric:tabular-nums; }
+.legenda-trend-summary span { display:flex; align-items:center; gap:7px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:650; }
+.legenda-trend-summary strong { text-align:right; }.legenda-trend-summary b { color:#8e9bb9; text-align:center; }
+.legenda-trend-summary small { padding:3px 6px; border-radius:4px; text-align:right; font-weight:700; }
+.legenda-trend-summary small.subiu { background:#214b4f; color:#77dfd8; }.legenda-trend-summary small.caiu { background:#512d47; color:#f19ac7; }.legenda-trend-summary small.estavel { background:#3d4355; color:#ccd3e1; }
+.legenda-trend-summary .legenda-trend-summary-head { background:#22273d; color:#aeb9d2; font-size:10px; text-transform:uppercase; letter-spacing:.04em; }
+.legenda-trend-summary .legenda-trend-summary-head span { color:#aeb9d2; }.legenda-trend-summary .legenda-trend-summary-head small { padding:0; color:#aeb9d2; background:transparent; }
+.party-ranking-controls { display:flex; flex-wrap:wrap; gap:6px; }
 .dash-rank-row strong small { display:block; color:#b8c6df; font-size:10px; font-weight:500; }
 .dash-distribution-row:is(button) { width:100%; padding:2px 6px; border:0; background:transparent; text-align:left; cursor:pointer; }
 .dash-distribution-row:is(button):hover,.dash-distribution-row:is(button)[aria-pressed=true] { background:#3b4667; }
 .legenda-municipios-filtros select { max-width:150px; }
 .legenda-municipios-tabela .legenda-municipios-cabecalho,.legenda-municipios-tabela button { grid-template-columns:minmax(150px,1fr) 90px 95px 90px; }
 .mapa-legenda:has(.legenda span:nth-child(9)) { max-height:230px; overflow:auto; }
-@media(max-width:700px) { .legenda-variation-row { grid-template-columns:65px 100px minmax(65px,1fr) 74px; gap:5px; font-size:10px; }.legenda-variation-head { grid-template-columns:65px 100px minmax(65px,1fr) 74px; gap:5px; }.legenda-municipios-tabela { overflow-x:auto; }.legenda-municipios-tabela .legenda-municipios-cabecalho,.legenda-municipios-tabela button { min-width:520px; } }
+@media(max-width:700px) { .legenda-municipios-tabela { overflow-x:auto; }.legenda-municipios-tabela .legenda-municipios-cabecalho,.legenda-municipios-tabela button { min-width:520px; } }
 @media(max-width:760px) { .legenda-evolution .legenda-trend { height:230px; } }
 .state-compare-caption { display:block; margin-top:12px; color:#bdc9e3; font-size:11px; }
 .global-party-filter>span { display:flex; align-items:baseline; gap:5px; }.global-party-filter small { color:#aeb9d3; font-size:9px; font-weight:500; }
@@ -262,7 +260,7 @@ html, .lista, .dash-ranking, .legenda-municipios-tabela, .legenda-trend-series, 
 .legenda-municipios-tabela button.selecionado { box-shadow:inset 3px 0 #f15aab; }
 .legenda-municipios-tabela button.fora-do-topo { margin-top:6px; border-top:1px dashed #747b9a; }
 .legenda-municipios-cabecalho span:nth-last-child(-n+2),.legenda-municipios-tabela button>strong,.legenda-municipios-tabela button>span:last-child { text-align:right; font-variant-numeric:tabular-nums; }
-@media(max-width:700px) { .dash-card-heading { flex-direction:column; gap:10px; }.busca-ranking-partido { width:100%; }.dash-ranking-partidos { max-height:170px; } }
+@media(max-width:700px) { .dash-card-heading { flex-direction:column; gap:10px; }.busca-ranking-partido { width:100%; }.dash-ranking-partidos { max-height:170px; }.party-ranking-footer { align-items:flex-start; flex-direction:column; }.legenda-reset-series { margin-left:0; }.legenda-trend-summary>div { grid-template-columns:minmax(70px,1fr) 65px 12px 65px 72px; gap:4px; padding:7px 6px; font-size:10px; } }
 @media(max-width:530px) { .legenda-municipios-cabecalho,.legenda-municipios-tabela button { grid-template-columns:minmax(0,1fr) 70px 64px; gap:6px; } }
 
 .mapa-modos { position:absolute; z-index:6; top:16px; right:16px; display:flex; gap:3px; padding:3px; border:1px solid #5b6689; border-radius:8px; background:#202640f2; box-shadow:0 6px 22px #070a1966; }
