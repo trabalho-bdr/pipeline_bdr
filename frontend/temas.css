@@ -43,6 +43,10 @@
 }
 
 :root[data-theme="light"] .q9-evo-stack span + span { border-left:1px solid #ffffff; }
+:root[data-theme="light"] .party-ranking-footer { background:var(--theme-surface-soft,#edf1f8); border-top-color:var(--theme-border,#cbd4e5); }
+:root[data-theme="light"] .legenda-trend-summary small.subiu { background:#daf4ec; color:#176860; }
+:root[data-theme="light"] .legenda-trend-summary small.caiu { background:#fbe8f0; color:#ad276e; }
+:root[data-theme="light"] .legenda-trend-summary small.estavel { background:#e5eaf4; color:#52617b; }
 
 .app-header-main { min-width:0; }
 .app-header-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:14px; margin-left:auto; min-width:0; max-width:100%; }

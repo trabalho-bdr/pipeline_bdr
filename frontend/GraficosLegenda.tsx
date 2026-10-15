@@ -20,6 +20,42 @@ const numero = (valor: number) => valor.toLocaleString("pt-BR");
 const percentual = (valor: number) => `${valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 const normalizarBusca = (valor: string) => valor.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase("pt-BR");
 const TAMANHO_PAGINA = 10;
+const CONTINUIDADE_PARTIDARIA: Record<string, { id: string; nome: string; tipo: "renomeacao" | "fusao" }> = {
+  PTC: { id: "historico-agir", nome: "PTC → AGIR", tipo: "renomeacao" },
+  AGIR: { id: "historico-agir", nome: "PTC → AGIR", tipo: "renomeacao" },
+  PPS: { id: "historico-cidadania", nome: "PPS → CIDADANIA", tipo: "renomeacao" },
+  CIDADANIA: { id: "historico-cidadania", nome: "PPS → CIDADANIA", tipo: "renomeacao" },
+  PR: { id: "historico-pl", nome: "PR → PL", tipo: "renomeacao" },
+  PL: { id: "historico-pl", nome: "PR → PL", tipo: "renomeacao" },
+  PRB: { id: "historico-republicanos", nome: "PRB → REPUBLICANOS", tipo: "renomeacao" },
+  REPUBLICANOS: { id: "historico-republicanos", nome: "PRB → REPUBLICANOS", tipo: "renomeacao" },
+  PATRI: { id: "historico-patriota", nome: "PATRI + PRP → PATRIOTA", tipo: "fusao" },
+  PRP: { id: "historico-patriota", nome: "PATRI + PRP → PATRIOTA", tipo: "fusao" },
+  PATRIOTA: { id: "historico-patriota", nome: "PATRI + PRP → PATRIOTA", tipo: "fusao" },
+  DEM: { id: "historico-uniao", nome: "DEM + PSL → UNIÃO", tipo: "fusao" },
+  PSL: { id: "historico-uniao", nome: "DEM + PSL → UNIÃO", tipo: "fusao" },
+  "UNIÃO": { id: "historico-uniao", nome: "DEM + PSL → UNIÃO", tipo: "fusao" },
+  PHS: { id: "historico-pode", nome: "PODE + PHS → PODE", tipo: "fusao" },
+  PODE: { id: "historico-pode", nome: "PODE + PHS → PODE", tipo: "fusao" },
+  PPL: { id: "historico-pcdob", nome: "PCdoB + PPL → PCdoB", tipo: "fusao" },
+  "PC DO B": { id: "historico-pcdob", nome: "PCdoB + PPL → PCdoB", tipo: "fusao" },
+  PCDOB: { id: "historico-pcdob", nome: "PCdoB + PPL → PCdoB", tipo: "fusao" },
+};
+
+const chaveHistorica = (partido: SeriePartido) => CONTINUIDADE_PARTIDARIA[partido.nome.toLocaleUpperCase("pt-BR")] ?? { id: partido.id, nome: partido.nome, tipo: null };
+
+export function normalizarHistoricoPartidario(historico: HistoricoAno[]): HistoricoAno[] {
+  return historico.map((item) => {
+    const partidos = new Map<string, SeriePartido>();
+    for (const partido of item.partidos) {
+      const continuidade = chaveHistorica(partido);
+      const atual = partidos.get(continuidade.id) ?? { id: continuidade.id, nome: continuidade.nome, legenda: 0 };
+      atual.legenda += partido.legenda;
+      partidos.set(continuidade.id, atual);
+    }
+    return { ano: item.ano, partidos: [...partidos.values()] };
+  });
+}
 
 export function GraficosLegenda({ uf, mun, cargo, partidoGlobal, opcoes, linhas, carregando, onMunicipio, ufPorMunicipio, ufsDisponiveis, todosAnos, historicoMock, historicoExterno, erroHistoricoExterno = false, faixaSelecionada = null }: Props) {
   const { tema } = useTema();
@@ -30,8 +66,6 @@ export function GraficosLegenda({ uf, mun, cargo, partidoGlobal, opcoes, linhas,
   const [buscaMunicipio, setBuscaMunicipio] = useState("");
   const [paginaMunicipios, setPaginaMunicipios] = useState(1);
   const [escalaSerie, setEscalaSerie] = useState<"participacao" | "votos">("participacao");
-  const [visaoHistorica, setVisaoHistorica] = useState<"variacao" | "linhas">("variacao");
-  const [mostrarTodasVariacoes, setMostrarTodasVariacoes] = useState(false);
   const [partidosComparados, setPartidosComparados] = useState<string[]>([]);
   const [ordemMunicipios, setOrdemMunicipios] = useState<"votos" | "participacao">("votos");
   useEffect(() => { setBuscaMunicipio(""); setPaginaMunicipios(1); }, [uf, cargo, partidoGlobal]);
@@ -78,7 +112,8 @@ export function GraficosLegenda({ uf, mun, cargo, partidoGlobal, opcoes, linhas,
       if (indice >= 0) setPaginaMunicipios(Math.floor(indice / TAMANHO_PAGINA) + 1);
     }
   }, [mun, municipioSelecionado?.posicao, termoMunicipio]);
-  const historicoAtivo = [...(historicoMock ?? historicoExterno ?? historico)].sort((a, b) => a.ano - b.ano);
+  const historicoBruto = [...(historicoMock ?? historicoExterno ?? historico)];
+  const historicoAtivo = normalizarHistoricoPartidario(historicoBruto).sort((a, b) => a.ano - b.ano);
   const todosPartidosHistoricos = [...new Map(historicoAtivo.flatMap((item) => item.partidos.map((p) => [p.id, p.nome] as const))).entries()]
     .sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
   const totaisPorAno = new Map(historicoAtivo.map((item) => [item.ano, item.partidos.reduce((soma, partido) => soma + partido.legenda, 0)]));
@@ -95,48 +130,39 @@ export function GraficosLegenda({ uf, mun, cargo, partidoGlobal, opcoes, linhas,
     }, []);
     return { id, nome, pontos: pontos.filter((item): item is { ano: number; legenda: number; votos: number } => item.legenda !== null), segmentos };
   });
-  const [anoAnterior, anoPosterior] = [historicoAtivo[0], historicoAtivo.at(-1)];
-  const variacoes = anoAnterior && anoPosterior && anoAnterior.ano !== anoPosterior.ano
-    ? todosPartidosHistoricos.map(([id, nome]) => {
-      const anterior = anoAnterior.partidos.find((item) => item.id === id);
-      const posterior = anoPosterior.partidos.find((item) => item.id === id);
-      if (!anterior || !posterior) return null;
-      const participacaoAnterior = 100 * anterior.legenda / Math.max(1, totaisPorAno.get(anoAnterior.ano) ?? 0);
-      const participacaoPosterior = 100 * posterior.legenda / Math.max(1, totaisPorAno.get(anoPosterior.ano) ?? 0);
-      return { id, nome, anterior: participacaoAnterior, posterior: participacaoPosterior, diferenca: participacaoPosterior - participacaoAnterior };
-    }).filter((item): item is { id: string; nome: string; anterior: number; posterior: number; diferenca: number } => item !== null)
-      .sort((a, b) => Math.abs(b.diferenca) - Math.abs(a.diferenca)) : [];
-  const variacoesVisiveis = mostrarTodasVariacoes ? variacoes : [...variacoes.slice(0, 10), ...variacoes.filter((item, indice) => indice >= 10 && item.id === partidoGlobal)];
-  const maiorVariacao = Math.max(0.1, ...variacoes.map((item) => Math.abs(item.diferenca)));
-  const partidosIniciais = [...seriesHistoricas].sort((a, b) => (b.pontos.at(-1)?.legenda ?? 0) - (a.pontos.at(-1)?.legenda ?? 0)).slice(0, 5).map((item) => item.id);
-  const idsComparados = partidosComparados.length ? partidosComparados : partidoGlobal && seriesHistoricas.some((serie) => serie.id === partidoGlobal) ? [partidoGlobal] : partidosIniciais;
-  const seriesComparadas = seriesHistoricas.filter((serie) => idsComparados.includes(serie.id));
+  const seriesComparaveis = seriesHistoricas.filter((serie) => serie.pontos.length >= 2);
+  const totalSemComparacao = seriesHistoricas.length - seriesComparaveis.length;
+  const partidosIniciais = [...seriesComparaveis].sort((a, b) => (b.pontos.at(-1)?.legenda ?? 0) - (a.pontos.at(-1)?.legenda ?? 0)).slice(0, 5).map((item) => item.id);
+  const partidoGlobalOriginal = historicoBruto.flatMap((item) => item.partidos).find((item) => item.id === partidoGlobal);
+  const partidoGlobalComparavel = partidoGlobalOriginal ? chaveHistorica(partidoGlobalOriginal).id : partidoGlobal;
+  const idsComparados = partidosComparados.length ? partidosComparados : partidoGlobal && seriesComparaveis.some((serie) => serie.id === partidoGlobalComparavel) ? [partidoGlobalComparavel] : partidosIniciais;
+  const seriesComparadas = seriesComparaveis.filter((serie) => idsComparados.includes(serie.id));
+  const partidosDisponiveis = seriesComparaveis.filter((serie) => !idsComparados.includes(serie.id));
   const valoresComparados = seriesComparadas.flatMap((serie) => serie.pontos.map((ponto) => ponto.legenda));
-  const valoresHistoricos = seriesHistoricas.flatMap((serie) => serie.pontos.map((ponto) => ponto.legenda));
-  const maximo = Math.max(0, ...(visaoHistorica === "linhas" ? valoresComparados : valoresHistoricos));
+  const maximo = Math.max(0, ...valoresComparados);
   const piso = 0, teto = maximo || 1;
   const rotuloValor = (valor: number) => escalaSerie === "participacao" ? percentual(valor) : numero(Math.round(valor));
+  const rotuloDiferenca = (valor: number) => `${valor > 0 ? "+" : ""}${escalaSerie === "participacao" ? percentual(valor) : `${numero(Math.round(valor))} votos`}`;
+  const anoInicial = historicoAtivo[0]?.ano;
+  const anoFinal = historicoAtivo.at(-1)?.ano;
   const xHistorico = (ano: number) => 72 + 456 * (ano - historicoAtivo[0].ano) / Math.max(1, historicoAtivo.at(-1)!.ano - historicoAtivo[0].ano);
   const yHistorico = (valor: number) => 165 - 120 * (valor - piso) / Math.max(1, teto - piso);
   const semDados = carregando || !linhas.length;
 
   return <section class="legenda-graficos" aria-label="Gráficos de votos por legenda">
-    {todosAnos && <article class="dash-chart-card legenda-evolution"><div class="legenda-evolution-head"><div><span>SÉRIE HISTÓRICA</span><h2>Participação partidária entre eleições</h2><p>{cargo || "Cargo"} · {mun ? "município" : uf || "seis UFs disponíveis"}</p></div></div>
-      <div class="legenda-history-controls" role="group" aria-label="Visualização histórica"><button type="button" aria-pressed={visaoHistorica === "variacao"} onClick={() => setVisaoHistorica("variacao")}>Variação da participação</button><button type="button" aria-pressed={visaoHistorica === "linhas"} onClick={() => setVisaoHistorica("linhas")}>Evolução por partido</button></div>
-      {erroHistorico || erroHistoricoExterno ? <div class="dash-empty">Não foi possível carregar a série histórica.</div> : !historicoAtivo.length ? <div class="dash-empty">Carregando eleições disponíveis…</div> : !seriesHistoricas.length ? <div class="dash-empty">Não há registros de partidos para este recorte.</div> : visaoHistorica === "variacao" ? variacoes.length ? <>
-        <p class="legenda-history-description">Cada percentual é a parte do partido no total de votos de legenda daquele ano. A barra mostra a diferença entre os dois percentuais.</p>
-        <div class="legenda-variation-key"><span><i class="subiu" /> Ganhou participação</span><span><i class="caiu" /> Perdeu participação</span><span>Centro = sem mudança</span></div>
-        <div class="legenda-variation-head"><span>Partido</span><span>Participação: {anoAnterior.ano} → {anoPosterior.ano}</span><span>Variação</span></div>
-        <div class="legenda-variation-list">{variacoesVisiveis.map((item) => <div class={`legenda-variation-row ${partidoGlobal === item.id ? "selecionado" : ""}`} key={item.id} title={`${item.nome}: ${anoAnterior.ano} ${percentual(item.anterior)} → ${anoPosterior.ano} ${percentual(item.posterior)}; variação de ${item.diferenca > 0 ? "+" : ""}${percentual(item.diferenca)} pontos percentuais`}><strong>{item.nome}</strong><span class="legenda-variation-years">{percentual(item.anterior)} → {percentual(item.posterior)}</span><div class="legenda-variation-track"><i class={item.diferenca > 0.05 ? "subiu" : item.diferenca < -0.05 ? "caiu" : "estavel"} style={{ left: item.diferenca < 0 ? `${50 - 48 * Math.abs(item.diferenca) / maiorVariacao}%` : "50%", width: `${Math.max(1, 48 * Math.abs(item.diferenca) / maiorVariacao)}%` }} /></div><span class="legenda-variation-delta">{item.diferenca > 0 ? "+" : ""}{percentual(item.diferenca)} pontos</span></div>)}</div>
-        <small class="legenda-evolution-note">Exemplo: 10% em {anoAnterior.ano} e 14% em {anoPosterior.ano} significa aumento de 4 pontos percentuais. Não significa aumento de 4% no número de votos.</small>
-        {variacoes.length > 10 && <button type="button" class="legenda-show-more" onClick={() => setMostrarTodasVariacoes(!mostrarTodasVariacoes)}>{mostrarTodasVariacoes ? "Mostrar 10 principais" : `Ver todos os ${variacoes.length} partidos`}</button>}
-      </> : <div class="dash-empty">A comparação exige dois anos distintos e registro do mesmo partido em ambos. Ausência de registro não é zero voto.</div> : <>
-        <div class="legenda-line-options"><label>Escala<select value={escalaSerie} onChange={(e) => setEscalaSerie((e.target as HTMLSelectElement).value as "participacao" | "votos")}><option value="participacao">% dos votos de legenda no ano</option><option value="votos">Votos absolutos</option></select></label><div class="legenda-party-options" aria-label="Partidos comparados">{seriesHistoricas.map((serie) => <label key={serie.id}><input type="checkbox" checked={idsComparados.includes(serie.id)} onChange={() => setPartidosComparados((atuais) => { const selecionados = atuais.length ? atuais : idsComparados; return selecionados.includes(serie.id) ? selecionados.filter((id) => id !== serie.id) : [...selecionados, serie.id]; })} /><i style={{ background: corPartido(serie.nome) }} />{serie.nome}</label>)}</div></div>
+    {todosAnos && <article class="dash-chart-card legenda-evolution"><div class="legenda-evolution-head"><div><span>SÉRIE HISTÓRICA</span><h2>Evolução dos votos de legenda</h2><p>{cargo || "Cargo"} · {mun ? "município" : uf || "seis UFs disponíveis"}</p></div></div>
+      {erroHistorico || erroHistoricoExterno ? <div class="dash-empty">Não foi possível carregar a série histórica.</div> : !historicoAtivo.length ? <div class="dash-empty">Carregando eleições disponíveis…</div> : !seriesHistoricas.length ? <div class="dash-empty">Não há registros de partidos para este recorte.</div> : !seriesComparaveis.length ? <div class="dash-empty">Nenhum partido possui dados em pelo menos duas eleições neste recorte.</div> : <>
+        <div class="legenda-line-options"><label>Como comparar<select value={escalaSerie} onChange={(e) => setEscalaSerie((e.target as HTMLSelectElement).value as "participacao" | "votos")}><option value="participacao">Participação (%)</option><option value="votos">Votos absolutos</option></select></label><label>Adicionar partido<select value="" disabled={!partidosDisponiveis.length || idsComparados.length >= 6} onChange={(e) => { const id = (e.target as HTMLSelectElement).value; if (id) setPartidosComparados([...idsComparados, id]); }}><option value="">{idsComparados.length >= 6 ? "Limite de 6 partidos" : "Escolha um partido"}</option>{partidosDisponiveis.map((serie) => <option key={serie.id} value={serie.id}>{serie.nome}</option>)}</select></label><button type="button" class="legenda-reset-series" onClick={() => setPartidosComparados([])}>Restaurar principais</button></div>
+        <p class="legenda-method-note">Comparação histórica: renomeações são unificadas; fusões e incorporações somam as siglas de origem. Isso inclui DEM + PSL → UNIÃO, PODE + PHS → PODE, PCdoB + PPL → PCdoB e PATRI + PRP → PATRIOTA.</p>
+        {totalSemComparacao > 0 && <p class="legenda-comparison-notice">{totalSemComparacao} {totalSemComparacao === 1 ? "partido não aparece" : "partidos não aparecem"} no seletor por não {totalSemComparacao === 1 ? "possuir" : "possuírem"} dados em pelo menos duas eleições.</p>}
+        <div class="legenda-selected-series" aria-label="Partidos exibidos">{seriesComparadas.map((serie) => <button type="button" key={serie.id} title={`Remover ${serie.nome} do gráfico`} onClick={() => setPartidosComparados(idsComparados.filter((id) => id !== serie.id))}><i style={{ background: corPartido(serie.nome) }} />{serie.nome}<span aria-hidden="true">×</span></button>)}</div>
         <svg class="legenda-trend" viewBox="0 0 600 220" role="img" aria-label={`Votos de legenda de todos os partidos entre ${historicoAtivo[0].ano} e ${historicoAtivo.at(-1)!.ano}`}>
           {[piso, (piso + teto) / 2, teto].map((valor) => <g key={valor}><line x1="72" x2="528" y1={yHistorico(valor)} y2={yHistorico(valor)} class="mock-grid-line" /><text x="62" y={yHistorico(valor) + 4} text-anchor="end" class="legenda-trend-tick">{rotuloValor(valor)}</text></g>)}
           {seriesComparadas.map((serie) => <g key={serie.id}><title>{serie.nome}</title>{serie.segmentos.filter((segmento) => segmento.length > 1).map((segmento) => <polyline key={segmento[0].ano} points={segmento.map((item) => `${xHistorico(item.ano)},${yHistorico(item.legenda)}`).join(" ")} fill="none" stroke={corPartido(serie.nome)} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />)}{serie.pontos.map((item) => <circle key={item.ano} cx={xHistorico(item.ano)} cy={yHistorico(item.legenda)} r="4" fill={corPartido(serie.nome)}><title>{serie.nome} · {item.ano}: {numero(item.votos ?? 0)} votos · {percentual(100 * (item.votos ?? 0) / Math.max(1, totaisPorAno.get(item.ano) ?? 0))} do total</title></circle>)}</g>)}
           {historicoAtivo.map((item) => <text key={item.ano} x={xHistorico(item.ano)} y="205" text-anchor="middle" class="legenda-trend-year">{item.ano}</text>)}
-        </svg><small class="legenda-evolution-note">{escalaSerie === "participacao" ? "Cada ponto mostra a parcela do partido entre os votos de legenda registrados naquele ano e recorte. " : "Cada ponto mostra o total de votos de legenda do partido. "}Anos sem registro aparecem como lacunas, não como zero voto.</small>
+        </svg>
+        <div class="legenda-trend-summary" aria-label="Resumo da evolução dos partidos"><div class="legenda-trend-summary-head"><span>Partido</span><strong>{anoInicial}</strong><b aria-hidden="true" /><strong>{anoFinal}</strong><small>Variação</small></div>{seriesComparadas.map((serie) => { const inicio = serie.pontos[0]; const fim = serie.pontos.at(-1)!; const diferenca = fim.legenda - inicio.legenda; return <div key={serie.id}><span><i style={{ background: corPartido(serie.nome) }} />{serie.nome}</span><strong>{rotuloValor(inicio.legenda)}</strong><b aria-hidden="true">→</b><strong>{rotuloValor(fim.legenda)}</strong><small class={diferenca > 0 ? "subiu" : diferenca < 0 ? "caiu" : "estavel"}>{rotuloDiferenca(diferenca)}</small></div>; })}</div>
+        <small class="legenda-evolution-note">{escalaSerie === "participacao" ? "Variação da participação entre a primeira e a última eleição." : "Variação no total de votos entre a primeira e a última eleição."}</small>
       </>}
     </article>}
     <article class="dash-chart-card legenda-municipios"><div class="legenda-municipios-intro"><div><span>RECORTE MUNICIPAL</span><h2>Votos de legenda por município</h2><p>Selecione um município para localizá-lo no mapa.</p></div><div class="legenda-municipios-filtros"><strong>{numero(municipiosFiltrados.length)}{termoMunicipio || faixaSelecionada !== null ? ` de ${numero(municipios.length)}` : ""} municípios</strong><input id="busca-municipios-legenda" type="search" value={buscaMunicipio} placeholder="Buscar município" aria-label="Buscar município" onInput={(e) => { setBuscaMunicipio((e.target as HTMLInputElement).value); setPaginaMunicipios(1); }} /><select value={ordemMunicipios} aria-label="Ordenar municípios" onChange={(e) => { setOrdemMunicipios((e.target as HTMLSelectElement).value as "votos" | "participacao"); setPaginaMunicipios(1); }}><option value="votos">Mais votos</option><option value="participacao">Maior participação</option></select></div></div>
