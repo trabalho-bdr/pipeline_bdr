@@ -35,7 +35,7 @@ O preenchimento rosa do mapa representa o percentual de votos de legenda entre v
 
 Na visão Brasil, a comparação entre UFs usa uma cor fixa por estado nos gráficos e na lista lateral, enquanto o mapa mantém a escala rosa por percentual. Os demais gráficos do painel mostram o agregado das seis UFs: proporção legenda × nominal, evolução por eleição e municípios. Selecionar um município na tabela abre sua UF no mapa.
 
-O filtro **Partido** fica na barra superior e se aplica a todo o painel, inclusive ao gráfico **Evolução dos votos de legenda**. Com **Todos**, a linha representa o total do recorte; ao escolher um partido, a linha mostra sua série individual.
+O filtro **Partido** fica na barra superior e se aplica a todo o painel, inclusive ao gráfico **Evolução dos votos de legenda**. Com **Todos**, o gráfico apresenta uma linha por partido, com cores identificadas na legenda; ao escolher um partido, mostra apenas sua série. A evolução usa as eleições disponíveis para o mesmo cargo, posiciona os pontos pelos anos reais e deixa lacunas quando um partido não tem registro em determinado ano.
 
 Quando um partido está selecionado, os cartões **Partido líder** e **Ranking de partidos** deixam de aparecer; os demais indicadores e gráficos permanecem no recorte filtrado.
 

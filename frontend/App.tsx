@@ -1,7 +1,7 @@
 import { scaleLinear } from "d3-scale";
 import { feature } from "topojson-client";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { GraficosLegenda } from "./GraficosLegenda";
+import { GraficosLegenda, resumirLegendaPorPartido } from "./GraficosLegenda";
 import { Feat, Mapa } from "./Mapa";
 import { gerarLinhasMockLegenda, opcoesMockLegenda } from "./mockLegenda";
 import { CORES_UF, corPartido } from "./coresEleitorais";
@@ -124,7 +124,7 @@ export function App() {
   const escala = valores.length ? scaleLinear<string>().domain([lo, hi]).range(["#2f4fbf", "#ff5a4d"]) : null;
   const partidos = [...new Map(linhasFonte.map((r) => [r.id_partido, r.partido])).entries()].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
   const linhasAtivas = linhasFonte.filter((r) => !partido || r.id_partido === partido);
-  const historicoMock = useMemo(() => mostrarMock ? opcoesMockLegenda.filter((item) => item.cargo === cargo).map((item) => ({ ano: item.ano, legenda: gerarLinhasMockLegenda(lista, item.ano, cargo).filter((r) => (!mun || r.id_municipio === mun) && (!partido || r.id_partido === partido)).reduce((soma, r) => soma + r.votos_legenda, 0) })) : undefined, [mostrarMock, lista, cargo, mun, partido]);
+  const historicoMock = useMemo(() => mostrarMock ? opcoesMockLegenda.filter((item) => item.cargo === cargo).map((item) => resumirLegendaPorPartido(item.ano, gerarLinhasMockLegenda(lista, item.ano, cargo).filter((r) => !mun || r.id_municipio === mun))) : undefined, [mostrarMock, lista, cargo, mun]);
   const porMunicipio = linhasAtivas.reduce((acc, r) => {
     const atual = acc.get(r.id_municipio) || { legenda: 0, nominais: 0 };
     atual.legenda += r.votos_legenda; atual.nominais += r.votos_nominais;
@@ -273,7 +273,7 @@ export function App() {
         <article class="dash-chart-card"><h2>{analise === "legenda" ? "Distribuição dos votos de legenda" : "Distribuição da abstenção"}</h2><p>Quantidade de municípios por faixa percentual</p>{(analise === "legenda" ? percentuaisMunicipios.length : valores.length) ? <div class="dash-distribution">{faixasAtivas.map((f) => <div key={f.rotulo}><span>{f.valor}</span><i style={{ height: `${Math.max(3, 100 * f.valor / maxFaixaAtiva)}%` }} /><small>{f.rotulo}</small></div>)}</div> : <div class="dash-empty">Os dados aparecem após selecionar um estado.</div>}</article>
       </section>}
       {visao === "painel" && analise === "legenda" && !uf && <section class="state-compare dash-chart-card" aria-label="Comparação entre estados disponíveis"><h2>Brasil · comparação entre estados</h2><p>Participação dos votos de legenda entre votos de legenda e nominais · seis UFs disponíveis · {cargo} {anoLegenda}</p>{statusBrasil === "erro" && !mostrarMock ? <div class="dash-empty">Não foi possível consultar os estados. Verifique a conexão com o banco.</div> : !estadoLinhas.length ? <div class="dash-empty">Carregando dados dos estados disponíveis…</div> : <div class="state-compare-list">{estadoLinhas.map((item) => <button key={item.uf} onClick={() => selecionarUf(item.uf)}><strong><i class="state-dot" style={{ background: CORES_UF[item.uf] }} />{cat?.ufs.find((u) => u.sigla === item.uf)?.nome || item.uf}<small>{item.uf}</small></strong><i><b style={{ width: `${Math.min(100, item.percentual / 30 * 100)}%`, background: CORES_UF[item.uf] }} /></i><span>{fmt(item.percentual, 1, "%")}<small>{fmt(item.legenda)} votos de legenda</small></span></button>)}</div>}</section>}
-      {visao === "painel" && analise === "legenda" && <GraficosLegenda uf={uf} mun={mun} cargo={cargo} partido={partido} ano={anoLegenda} opcoes={opcoesAtivas} linhas={linhasAtivas} carregando={!mostrarMock && (uf ? statusLegenda !== "ok" : statusBrasil !== "ok")} onMunicipio={selecionarMunicipio} ufPorMunicipio={ufPorMunicipio} ufsDisponiveis={COBERTOS} historicoMock={historicoMock} corSerie={partido ? corPartido(partido) : undefined} />}
+      {visao === "painel" && analise === "legenda" && <GraficosLegenda uf={uf} mun={mun} cargo={cargo} partido={partido} ano={anoLegenda} opcoes={opcoesAtivas} linhas={linhasAtivas} carregando={!mostrarMock && (uf ? statusLegenda !== "ok" : statusBrasil !== "ok")} onMunicipio={selecionarMunicipio} ufPorMunicipio={ufPorMunicipio} ufsDisponiveis={COBERTOS} historicoMock={historicoMock} />}
     </div>
   );
 }

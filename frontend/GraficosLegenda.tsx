@@ -1,15 +1,25 @@
 import { useEffect, useState } from "preact/hooks";
-import { CORES_UF } from "./coresEleitorais";
+import { CORES_UF, corPartido } from "./coresEleitorais";
 
 export type LinhaLegenda = { id_municipio: string; municipio: string; id_partido: string; partido: string; votos_legenda: number; votos_nominais: number };
 type Opcao = { ano: number; cargo: string };
-type Props = { uf: string | null; mun: string | null; cargo: string; partido: string; ano: number | null; opcoes: Opcao[]; linhas: LinhaLegenda[]; carregando: boolean; onMunicipio: (uf: string, id: string) => void; ufPorMunicipio: Record<string, string>; ufsDisponiveis: string[]; historicoMock?: Ponto[]; corSerie?: string };
-type Ponto = { ano: number; legenda: number | null };
+type SeriePartido = { id: string; nome: string; legenda: number };
+export type HistoricoAno = { ano: number; partidos: SeriePartido[] };
+type Props = { uf: string | null; mun: string | null; cargo: string; partido: string; ano: number | null; opcoes: Opcao[]; linhas: LinhaLegenda[]; carregando: boolean; onMunicipio: (uf: string, id: string) => void; ufPorMunicipio: Record<string, string>; ufsDisponiveis: string[]; historicoMock?: HistoricoAno[] };
+export function resumirLegendaPorPartido(ano: number, linhas: LinhaLegenda[]): HistoricoAno {
+  const partidos = new Map<string, SeriePartido>();
+  for (const item of linhas) {
+    const atual = partidos.get(item.id_partido) ?? { id: item.id_partido, nome: item.partido, legenda: 0 };
+    atual.legenda += item.votos_legenda;
+    partidos.set(item.id_partido, atual);
+  }
+  return { ano, partidos: [...partidos.values()] };
+}
 const numero = (valor: number) => valor.toLocaleString("pt-BR");
 const percentual = (valor: number) => `${valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 
-export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, carregando, onMunicipio, ufPorMunicipio, ufsDisponiveis, historicoMock, corSerie }: Props) {
-  const [historico, setHistorico] = useState<Ponto[]>([]);
+export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, carregando, onMunicipio, ufPorMunicipio, ufsDisponiveis, historicoMock }: Props) {
+  const [historico, setHistorico] = useState<HistoricoAno[]>([]);
   const [erroHistorico, setErroHistorico] = useState(false);
   useEffect(() => {
     setHistorico([]); setErroHistorico(false);
@@ -25,12 +35,12 @@ export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, 
         const dados: { linhas: LinhaLegenda[] } = await resposta.json();
         return dados.linhas;
       }));
-      const linhasAno = resultados.flat().filter((item) => (!mun || item.id_municipio === mun) && (!partido || item.id_partido === partido));
-      return { ano: anoConsulta, legenda: linhasAno.length ? linhasAno.reduce((soma, item) => soma + item.votos_legenda, 0) : null };
+      const linhasAno = resultados.flat().filter((item) => !mun || item.id_municipio === mun);
+      return resumirLegendaPorPartido(anoConsulta, linhasAno);
     })).then((pontos) => { if (!ac.signal.aborted) setHistorico(pontos); })
       .catch(() => { if (!ac.signal.aborted) setErroHistorico(true); });
     return () => ac.abort();
-  }, [uf, mun, cargo, partido, opcoes, ufsDisponiveis, historicoMock, carregando]);
+  }, [uf, mun, cargo, opcoes, ufsDisponiveis, historicoMock, carregando]);
 
   const recorte = linhas.filter((item) => !mun || item.id_municipio === mun);
   const votosLegenda = recorte.reduce((soma, item) => soma + item.votos_legenda, 0);
@@ -42,17 +52,16 @@ export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, 
     acc.set(item.id_municipio, atual); return acc;
   }, new Map<string, { id: string; nome: string; legenda: number; nominais: number }>()).values()]
     .sort((a, b) => b.legenda - a.legenda).slice(0, 10);
-  const serie = [...(historicoMock ?? historico)].sort((a, b) => a.ano - b.ano);
-  const max = Math.max(1, ...serie.map((item) => item.legenda ?? 0));
-  const intervalo = Math.max(1, (serie.at(-1)?.ano ?? 0) - (serie[0]?.ano ?? 0));
-  const pontos = serie.map((item) => ({ ...item, x: serie.length === 1 ? 261 : 42 + (item.ano - serie[0].ano) * 438 / intervalo, y: item.legenda === null ? null : 165 - item.legenda / max * 115 }));
-  const pontosValidos = pontos.filter((item) => item.y !== null);
-  const segmentos = pontos.reduce<typeof pontos[]>((acumulado, item, indice) => {
-    if (item.y === null) return acumulado;
-    if (!acumulado.length || pontos[indice - 1]?.y === null) acumulado.push([]);
-    acumulado.at(-1)?.push(item);
-    return acumulado;
-  }, []);
+  const historicoAtivo = [...(historicoMock ?? historico)].sort((a, b) => a.ano - b.ano);
+  const partidosHistoricos = [...new Map(historicoAtivo.flatMap((item) => item.partidos.map((p) => [p.id, p.nome] as const))).entries()]
+    .filter(([id]) => !partido || id === partido).sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
+  const max = Math.max(1, ...historicoAtivo.flatMap((item) => item.partidos.filter((p) => !partido || p.id === partido).map((p) => p.legenda)));
+  const intervalo = Math.max(1, (historicoAtivo.at(-1)?.ano ?? 0) - (historicoAtivo[0]?.ano ?? 0));
+  const series = partidosHistoricos.map(([id, nome]) => ({ id, nome, pontos: historicoAtivo.map((item) => {
+    const registro = item.partidos.find((p) => p.id === id);
+    return { ano: item.ano, legenda: registro?.legenda ?? null, x: historicoAtivo.length === 1 ? 261 : 42 + (item.ano - historicoAtivo[0].ano) * 438 / intervalo, y: registro ? 165 - registro.legenda / max * 115 : null };
+  }) }));
+  const totalPontos = series.reduce((soma, serie) => soma + serie.pontos.filter((item) => item.y !== null).length, 0);
   const semDados = carregando || !linhas.length;
 
   return <section class="legenda-graficos" aria-label="Gráficos de votos por legenda">
@@ -62,13 +71,27 @@ export function GraficosLegenda({ uf, mun, cargo, partido, ano, opcoes, linhas, 
         <div class="legenda-proporcao-valores"><div><i class="ponto-legenda" /><span>Legenda<strong>{numero(votosLegenda)}</strong></span></div><div><i class="ponto-nominal" /><span>Nominal<strong>{numero(votosNominais)}</strong></span></div></div>
       </div>}
     </article>
-    <article class="dash-chart-card"><h2>Evolução dos votos de legenda</h2><p>{cargo || "Cargo"} · {mun ? "município" : uf || "seis UFs disponíveis"}{partido ? " · partido selecionado no filtro global" : ""}</p>
-      {erroHistorico ? <div class="dash-empty">Não foi possível carregar a série histórica.</div> : !pontos.length ? <div class="dash-empty">Carregando eleições disponíveis…</div> : !pontosValidos.length ? <div class="dash-empty">Sem registros para este recorte nos anos disponíveis.</div> : <svg class="legenda-trend" viewBox="0 0 520 205" role="img" aria-label={`Votos de legenda de ${pontos[0].ano} a ${pontos[pontos.length - 1].ano}; anos sem registros não são ligados`}>
-        {[50, 107, 165].map((y) => <line key={y} x1="42" x2="480" y1={y} y2={y} class="mock-grid-line" />)}
-        {segmentos.filter((segmento) => segmento.length > 1).map((segmento) => <polyline key={segmento[0].ano} points={segmento.map((item) => `${item.x},${item.y}`).join(" ")} fill="none" stroke={corSerie || "var(--legend-accent, #ed4ca2)"} stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />)}
-        {pontos.map((item) => <g key={item.ano}>{item.y !== null && <><circle cx={item.x} cy={item.y} r="5" fill={corSerie || "var(--legend-accent, #ed4ca2)"} stroke={item.ano === ano ? "#fff" : "none"} stroke-width="2" /><text x={item.x} y={item.y - 12} text-anchor="middle" class="mock-value">{numero(item.legenda!)}</text></>}<text x={item.x} y="192" text-anchor="middle" class="mock-year">{item.ano}</text></g>)}
-      </svg>}
-      {!!serie.length && <p class="legenda-trend-nota">Mesmo cargo nos anos disponíveis: {serie.map((item) => item.ano).join(", ")}. {pontosValidos.length === 1 ? "Há apenas uma eleição com registro para este recorte." : serie.some((item) => item.legenda === null) ? "Anos sem registros não são tratados como zero." : "A posição horizontal respeita o intervalo entre os anos."}</p>}
+    <article class="dash-chart-card"><h2>Evolução dos votos de legenda</h2><p>{cargo || "Cargo"} · {mun ? "município" : uf || "seis UFs disponíveis"}{partido ? " · partido selecionado no filtro global" : " · todos os partidos"}</p>
+      {erroHistorico ? <div class="dash-empty">Não foi possível carregar a série histórica.</div> : !historicoAtivo.length ? <div class="dash-empty">Carregando eleições disponíveis…</div> : !totalPontos ? <div class="dash-empty">Sem registros para este recorte nos anos disponíveis.</div> : <>
+        <svg class="legenda-trend" viewBox="0 0 520 205" role="img" aria-label={`Votos de legenda por partido de ${historicoAtivo[0].ano} a ${historicoAtivo[historicoAtivo.length - 1].ano}; anos sem registros não são ligados`}>
+          {[50, 107, 165].map((y) => <line key={y} x1="42" x2="480" y1={y} y2={y} class="mock-grid-line" />)}
+          {series.map((serie) => {
+            const segmentos = serie.pontos.reduce<typeof serie.pontos[]>((acumulado, item, indice) => {
+              if (item.y === null) return acumulado;
+              if (!acumulado.length || serie.pontos[indice - 1]?.y === null) acumulado.push([]);
+              acumulado.at(-1)?.push(item);
+              return acumulado;
+            }, []);
+            return <g key={serie.id}>
+              {segmentos.filter((segmento) => segmento.length > 1).map((segmento) => <polyline key={segmento[0].ano} points={segmento.map((item) => `${item.x},${item.y}`).join(" ")} fill="none" stroke={corPartido(serie.id)} stroke-width={partido ? "3" : "2"} stroke-linecap="round" stroke-linejoin="round" />)}
+              {serie.pontos.filter((item) => item.y !== null).map((item) => <circle key={item.ano} cx={item.x} cy={item.y!} r={partido ? "5" : "3"} fill={corPartido(serie.id)} stroke={item.ano === ano ? "#fff" : "none"} stroke-width="1.5"><title>{`${serie.nome} · ${item.ano}: ${numero(item.legenda!)} votos de legenda`}</title></circle>)}
+            </g>;
+          })}
+          {historicoAtivo.map((item) => <text key={item.ano} x={historicoAtivo.length === 1 ? 261 : 42 + (item.ano - historicoAtivo[0].ano) * 438 / intervalo} y="192" text-anchor="middle" class="mock-year">{item.ano}</text>)}
+        </svg>
+        <div class="legenda-trend-series" aria-label="Cores das séries">{partidosHistoricos.map(([id, nome]) => <span key={id}><i style={{ background: corPartido(id) }} />{nome}</span>)}</div>
+      </>}
+      {!!historicoAtivo.length && <p class="legenda-trend-nota">Mesmo cargo nos anos disponíveis: {historicoAtivo.map((item) => item.ano).join(", ")}. {historicoAtivo.length === 1 ? "Há apenas uma eleição disponível; não há tendência temporal." : "Cada partido aparece apenas nos anos com registro; lacunas não são zero."}</p>}
     </article>
     <article class="dash-chart-card legenda-municipios"><h2>Municípios com mais votos de legenda</h2><p>Selecione uma linha para localizar o município no mapa</p>
       {semDados ? <div class="dash-empty">Os municípios aparecem quando os dados do recorte carregam.</div> : <div class="legenda-municipios-tabela"><div class="legenda-municipios-cabecalho"><span>Município</span><span>Votos</span><span>% legenda</span></div>{municipios.map((item) => <button key={item.id} class={mun === item.id ? "selecionado" : ""} onClick={() => { const sigla = ufPorMunicipio[item.id] || uf; if (sigla) onMunicipio(sigla, item.id); }}><span class="municipio-tabela-nome"><span>{item.nome}</span>{!uf && ufPorMunicipio[item.id] && <small class="uf-badge" style={{ color: CORES_UF[ufPorMunicipio[item.id]], borderColor: CORES_UF[ufPorMunicipio[item.id]] }}>{ufPorMunicipio[item.id]}</small>}</span><strong>{numero(item.legenda)}</strong><span>{percentual(100 * item.legenda / Math.max(1, item.legenda + item.nominais))}</span></button>)}</div>}
