@@ -140,7 +140,7 @@ export function App() {
   const lista = useMemo(() => uf ? cat?.municipios[uf] ?? SEM_MUNICIPIOS : cat ? COBERTOS.flatMap((sigla) => cat.municipios[sigla] ?? []) : SEM_MUNICIPIOS, [cat, uf]);
   const opcoesAtivas = opcoesLegenda.length ? opcoesLegenda : mostrarMock ? opcoesMockLegenda : SEM_OPCOES_LEGENDA;
   const anosCargo = [...new Set(opcoesAtivas.filter((item) => item.cargo === cargo).map((item) => item.ano))].sort((a, b) => a - b);
-  const periodoLegenda = todosAnosLegenda ? `soma de ${anosCargo.join(", ")}` : `${anoLegenda ?? "—"}`;
+  const periodoLegenda = todosAnosLegenda && anosCargo.length > 1 ? `soma de ${anosCargo.join(", ")}` : `${anosCargo[0] ?? anoLegenda ?? "—"}`;
   const dadosHistoricosMock = useMemo((): DadosAnoUfLegenda[] => {
     if (!mostrarMock || !cat || !todosAnosLegenda) return [];
     return opcoesAtivas.filter((item) => item.cargo === cargo).flatMap((item) => COBERTOS.map((sigla) => ({
@@ -273,8 +273,7 @@ export function App() {
     <div class={`layout layout-painel ${analise === "legenda" ? "analysis-legenda" : "analysis-abstencao"} ${analise === "legenda" && mun ? "municipio-selecionado" : ""} ${analise === "legenda" && mostrarMock ? "preview-mock" : ""}`}>
       <header class="app-header">
         <div class="app-header-main">
-          <div class="view-heading"><span class="view-kicker">ELEIÇÕES BRASIL / PAINEL{analise === "legenda" && mostrarMock ? " / DADOS SIMULADOS" : ""}</span><strong>{analise === "legenda" ? "Votos por legenda" : "Participação eleitoral"}</strong></div>
-          <div class="selected-location" aria-live="polite"><span>{mun ? "MUNICÍPIO SELECIONADO" : uf ? "ESTADO SELECIONADO" : "ABRANGÊNCIA"}</span><strong>{mun ? `${nomes[mun] || mun} (${uf})` : uf ? `${nomeUf} (${uf})` : analise === "legenda" ? "Brasil · UFs disponíveis" : "Brasil"}</strong>{analise === "legenda" && mun && <button type="button" onClick={() => setMun(null)}>← Ver {nomeUf}</button>}</div>
+          <div class="view-heading"><span class="view-kicker">ELEIÇÕES BRASIL / PAINEL{analise === "legenda" && mostrarMock ? " / DADOS SIMULADOS" : ""}</span><strong>{analise === "legenda" ? "Votos por legenda" : "Participação eleitoral"}</strong><div class="view-context" aria-live="polite"><span>{mun ? `${nomes[mun] || mun} · ${nomeUf} (${uf})` : uf ? `${nomeUf} (${uf})` : analise === "legenda" ? "Brasil · UFs disponíveis" : "Brasil"}</span>{analise === "legenda" && mun && <button type="button" onClick={() => setMun(null)}>← Voltar ao estado</button>}</div></div>
         </div>
         <div class="app-filter-row">
           <div class="analysis-switch" role="group" aria-label="Análise eleitoral">
@@ -316,7 +315,7 @@ export function App() {
         {analise === "legenda" ? <>
           <article><span>Votos de legenda</span><strong>{dadosProntosLegenda && linhasFonte.length ? fmt(totalLegenda) : "—"}</strong><small>{todosAnosLegenda ? periodoLegenda : mun ? "Neste município" : uf ? "Neste estado" : "Nas UFs disponíveis"}</small><i class="kpi-line pink" /></article>
           <article><span>Participação no recorte</span><strong>{dadosProntosLegenda && linhasFonte.length ? fmt(percentualLegenda, 1, "%") : "—"}</strong><small>{mun && participacaoEstado !== null && percentualLegenda !== null ? `${nomeUf}: ${fmt(participacaoEstado, 1, "%")} · município ${percentualLegenda > participacaoEstado ? "acima" : percentualLegenda < participacaoEstado ? "abaixo" : "igual"}` : "Entre votos para partidos ou candidatos"}</small><i class="kpi-line violet" /></article>
-          <article><span>Votos nominais</span><strong>{dadosProntosLegenda && linhasFonte.length ? fmt(totalNominais) : "—"}</strong><small>{todosAnosLegenda ? "Mesmo cargo · soma dos anos" : "Mesmo cargo e ano"}</small><i class="kpi-line cyan" /></article>
+          <article><span>Votos nominais</span><strong>{dadosProntosLegenda && linhasFonte.length ? fmt(totalNominais) : "—"}</strong><small>{todosAnosLegenda ? anosCargo.length > 1 ? "Mesmo cargo · soma dos anos" : `Mesmo cargo · ${periodoLegenda}` : "Mesmo cargo e ano"}</small><i class="kpi-line cyan" /></article>
         </> : <>
           <article><span>Eleitorado</span><strong>{uf && valido ? fmt(mun ? sel?.eleitorado : totalEleitorado) : "—"}</strong><small>{mun ? nomes[mun] : uf || "Selecione um estado"}</small><i class="kpi-line cyan" /></article>
           <article><span>Abstenções</span><strong>{uf && valido ? fmt(mun ? sel?.abstencoes : totalAbstencoes) : "—"}</strong><small>Pessoas que não votaram</small><i class="kpi-line pink" /></article>
