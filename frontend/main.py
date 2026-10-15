@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from bdr.consultas_apuracao import consulta
-from frontend import q2, q9
+from frontend import q2, q9, q9_evolucao
 
 RAIZ = Path(__file__).resolve().parents[1]
 
@@ -226,6 +226,24 @@ def patrimonio_q2(ano: int | None = None, cargo: str | None = None, uf: str | No
 @app.get("/api/q9/opcoes")
 def opcoes_q9():
     return q9.opcoes(_consultar)
+
+
+@app.get("/api/q9/partidos")
+def partidos_q9(cargo: str, uf: str | None = None):
+    return q9_evolucao.partidos(_consultar, cargo, uf)
+
+
+@lru_cache(maxsize=32)
+def _evolucao_q9_cache(banco, cargo, uf, id_partido, id_candidato, criterio, janela):
+    return q9_evolucao.resumo(_consultar, cargo, uf, id_partido, id_candidato, criterio)
+
+
+@app.get("/api/q9/evolucao")
+def evolucao_q9(cargo: str, uf: str | None = None, id_partido: str | None = None,
+                id_candidato: str | None = None, criterio: str = 'sugeridas', atualizar: bool = False):
+    if atualizar:
+        _evolucao_q9_cache.cache_clear()
+    return _evolucao_q9_cache(BANCO, cargo, uf, id_partido, id_candidato, criterio, int(time.monotonic() // 180))
 
 
 @lru_cache(maxsize=24)

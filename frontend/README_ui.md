@@ -2,6 +2,18 @@
 
 ## Publicidade: pesquisa por candidato
 
+Veja [casos reais e testes por candidato](exemplos_q9.md), incluindo Darlene Pereira, Mainardi e Sarto. O histórico consolida os turnos da mesma pessoa, cargo, território e ano para não contar duas vezes uma candidatura que chegou ao segundo turno.
+
+A seção **Estratégia Publicitária e sucesso eleitoral**, abaixo do ranking, compara as eleições disponíveis de 2018, 2020, 2022 e 2024. Escolha **Por partido** e uma sigla, ou selecione um candidato na busca acima para usar **Por candidato**. Cargo, estado e critério de classificação são compartilhados com a nuvem; o ano da nuvem não limita a série histórica.
+
+As barras e a tabela mostram valores nominais e participação de cada tipo de publicidade. A redistribuição do perfil é metade da soma das diferenças absolutas de participação (0 a 100 p.p.). O seletor de eleições define o período das variações.
+
+As taxas anuais seguem a classificação de resultado da questão 2, usando apenas o último turno e todas as candidaturas da entidade com resultado definido, inclusive sem despesas. Não exigem patrimônio válido. A análise de mudança individual exige mesmo candidato, cargo, UF e município, intervalo de quatro anos, perfis positivos sem categorias negativas e resultados definidos nos dois anos. No modo partido, só inclui pessoas presentes no mesmo partido nas duas eleições; no modo candidato, registra trocas de partido. Não vincula nomes semelhantes ou fusões de partidos automaticamente.
+
+As faixas de redistribuição são menos de 10 p.p., de 10 a menos de 30 p.p. e 30 p.p. ou mais. Por categoria, compara ampliação da participação em pelo menos 10 p.p. aos demais candidatos que usaram essa categoria em algum dos anos. Cada taxa informa seu denominador. Os resultados são associações descritivas, não efeitos causais. Vitórias consecutivas não comprovam reeleição sem informações sobre exercício do mandato.
+
+Rotas: `/api/q9/partidos?cargo=PREFEITO&uf=RN` e `/api/q9/evolucao?cargo=PREFEITO&uf=RN&id_partido=...`. Para histórico individual, substitua `id_partido` por `id_candidato`. O histórico aceita `criterio=sugeridas|explicitas` e `atualizar=true`; o cache dura até três minutos.
+
 Na aba **Publicidade**, selecione ano, cargo e estado. Em **Pesquisar candidato específico**, digite pelo menos duas letras do nome de urna ou nome civil (acentos são opcionais) e escolha um resultado. Número, partido, município e UF ajudam a distinguir homônimos. A pesquisa lista até 20 candidaturas com despesas; refine o nome quando houver mais resultados.
 
 A seleção filtra os indicadores, a nuvem, o ranking e o CSV pela candidatura exata naquele ano e cargo. **Ver todos os candidatos** restaura o agregado. Mudar ano, cargo ou estado limpa a seleção. Candidaturas com despesas, mas sem publicidade identificada, apresentam valor zero de publicidade.

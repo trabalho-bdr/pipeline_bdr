@@ -22,7 +22,7 @@ def _fontes(consultar):
     rows = consultar('''SELECT table_catalog,table_schema,table_name
         FROM information_schema.tables WHERE table_catalog=current_database()
         AND table_schema IN ('main','der_bdr')
-        AND lower(table_name) IN ('candidatura','candidato','municipio','partido','eleicao','despesa_candidatura','vw_q9_categorias')''')
+        AND lower(table_name) IN ('candidatura','candidato','municipio','partido','eleicao','despesa_candidatura','resultado_candidatura','vw_q9_categorias')''')
     for schema in ('main', 'der_bdr'):
         found = {r['table_name'].lower(): '.'.join(map(_ident, (r['table_catalog'], schema, r['table_name'])))
                  for r in rows if r['table_schema'] == schema}
@@ -98,6 +98,28 @@ def _classificar(categoria):
             result['eh_publicidade_sugerida'], result['status_classificacao'], result['requer_revisao'])
 
 
+def _normalizacao(consultar, refs, categorias):
+    origem = 'views_q9' if 'vw_q9_categorias' in refs else 'regras_locais_q9'
+    dimension = {}
+    if categorias and origem == 'views_q9':
+        rows = consultar(f'''SELECT DISTINCT n.categoria_original,n.categoria_padronizada,n.grupo_despesa,
+            n.eh_publicidade_sugerida,n.status_classificacao,n.requer_revisao
+            FROM {refs['vw_q9_categorias']} n JOIN unnest(?::VARCHAR[]) f(categoria)
+            ON n.categoria_original IS NOT DISTINCT FROM f.categoria''', [categorias])
+        for row in rows:
+            raw = row['categoria_original']
+            if raw in dimension:
+                raise HTTPException(503, 'Há classificações conflitantes para uma mesma descrição na Q9.')
+            dimension[raw] = tuple(row[k] for k in ('categoria_padronizada', 'grupo_despesa',
+                'eh_publicidade_sugerida', 'status_classificacao', 'requer_revisao'))
+        if set(dimension) != set(categorias):
+            raise HTTPException(503, 'A normalização da Q9 está incompleta para o recorte selecionado.')
+    else:
+        dimension = {raw: _classificar(raw) for raw in categorias}
+    arrays = [categorias] + [[dimension[raw][i] for raw in categorias] for i in range(5)]
+    return arrays, origem
+
+
 def resumo(consultar, ano, cargo, uf=None, criterio='sugeridas', id_candidatura=None):
     if ano not in ANOS:
         raise HTTPException(422, 'A Q9 aceita os anos 2018, 2020, 2022 e 2024.')
@@ -117,25 +139,7 @@ def resumo(consultar, ano, cargo, uf=None, criterio='sugeridas', id_candidatura=
         candidato = encontrados[0]
     source, where, params = _recorte(refs, ano, cargo, uf, id_candidatura)
     categorias = [r['categoria'] for r in consultar(f'SELECT DISTINCT d.categoria FROM {source} WHERE {where}', params)]
-    origem = 'views_q9' if 'vw_q9_categorias' in refs else 'regras_locais_q9'
-    dimension = {}
-    if categorias and origem == 'views_q9':
-        rows = consultar(f'''SELECT DISTINCT n.categoria_original,n.categoria_padronizada,n.grupo_despesa,
-            n.eh_publicidade_sugerida,n.status_classificacao,n.requer_revisao
-            FROM {refs['vw_q9_categorias']} n JOIN unnest(?::VARCHAR[]) f(categoria)
-            ON n.categoria_original IS NOT DISTINCT FROM f.categoria''', [categorias])
-        for row in rows:
-            raw = row['categoria_original']
-            if raw in dimension:
-                raise HTTPException(503, 'Há classificações conflitantes para uma mesma descrição na Q9.')
-            dimension[raw] = tuple(row[k] for k in ('categoria_padronizada', 'grupo_despesa',
-                'eh_publicidade_sugerida', 'status_classificacao', 'requer_revisao'))
-        if set(dimension) != set(categorias):
-            raise HTTPException(503, 'A normalização da Q9 está incompleta para o recorte selecionado.')
-    else:
-        dimension = {raw: _classificar(raw) for raw in categorias}
-
-    arrays = [categorias] + [[dimension[raw][i] for raw in categorias] for i in range(5)]
+    arrays, origem = _normalizacao(consultar, refs, categorias)
     # A dimensão é um parâmetro da consulta, nunca uma tabela criada no banco.
     # GROUPING SETS recalcula distintos no total: não soma candidaturas de categorias.
     rows = consultar(f'''

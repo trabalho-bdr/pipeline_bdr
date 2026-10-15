@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { posicionarPalavras } from "./nuvemQ9";
+import { EvolucaoPublicidade } from "./EvolucaoPublicidade";
 import "./painel-q9.css";
 
 type Analise = "abstencao" | "legenda" | "publicidade" | "patrimonio";
 type Opcao = { ano: number; cargo: string; rotulo: string };
-type Candidato = { id_candidatura: string; nome: string; nome_civil: string | null;
+type Candidato = { id_candidatura: string; id_candidato: string; nome: string; nome_civil: string | null;
   numero_urna: number | null; municipio: string | null; uf: string; partido: string | null };
 type Categoria = { categoria: string; grupo: string; valor: number; participacao: number | null; candidaturas: number; registros: number; em_revisao: number };
 type Dados = {
@@ -197,7 +198,7 @@ export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analis
     </header>
 
     <main class="q9-content">
-      <div class="q9-intro"><div><span class="q9-eyebrow">GASTOS DE CAMPANHA</span><h1>Onde os candidatos<br />concentram seus gastos?</h1><p>Explore os tipos de publicidade e propaganda eleitoral por cargo e ano.</p></div>
+      <div class="q9-intro"><div><span class="q9-eyebrow">GASTOS DE CAMPANHA</span><h1>Concentração de Gastos Publicitários</h1><p>Explore os tipos de publicidade e propaganda eleitoral por cargo e ano.</p></div>
         <div class="q9-intro-actions"><span class="q9-context-chip">{cargoRotulo} <b>·</b> {filtros.ano} <b>·</b> {filtros.uf || "6 UFs"}</span><button class="q9-export" disabled={!temDados || carregando} onClick={() => dados && exportar(dados)}>↓ Baixar resumo</button></div>
       </div>
 
@@ -238,6 +239,8 @@ export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analis
           <span class="q9-rank-name"><small>{String(i + 1).padStart(2, "0")}</small><span>{g.grupo}<i class="q9-track"><b style={{ width: `${Math.max(0, 100 * g.valor / Math.max(1, dados.grupos[0].valor))}%`, background: i === 0 ? "#f03d94" : "#8f80c2" }} /></i></span></span><strong>{brl(g.valor)}</strong><span>{percentual(g.participacao)}</span>
         </button>) : <div class="q9-rank-placeholder">{carregando ? "Carregando valores…" : "Os valores por tipo aparecerão aqui quando houver despesas identificadas."}</div>}
       </section>
+
+      <EvolucaoPublicidade key={`${filtros.cargo}:${filtros.uf}:${filtros.candidato?.id_candidato || "todos"}`} cargo={filtros.cargo} uf={filtros.uf} criterio={filtros.criterio} candidato={filtros.candidato} atualizacao={atualizacao} />
 
       <details class="q9-method"><summary>Como ler estes dados <span>Classificação, cobertura e valores</span></summary><div>
         <p>As categorias são sugestões analíticas obtidas das descrições das despesas. Não são categorias oficiais do TSE. Valores contratados não significam valores já pagos.</p>
