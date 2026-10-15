@@ -1,6 +1,6 @@
 """API somente leitura do mapa de apuração (FastAPI + DuckDB/MotherDuck).
 
-Rodar na raiz do repositório:  uv run uvicorn api.main:app --port 8000
+Rodar na raiz do repositório: uv run uvicorn frontend.main:app --port 8000
 Variáveis: BDR_BANCO (banco DER local ou md:pipeline_bdr_der_completo),
 MOTHERDUCK_TOKEN (somente no servidor), BDR_CORS (origens separadas por vírgula).
 """
@@ -9,6 +9,7 @@ import os
 import threading
 import time
 from functools import lru_cache
+from pathlib import Path
 
 import duckdb
 from fastapi import FastAPI, HTTPException
@@ -17,17 +18,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from bdr.consultas_apuracao import consulta
 from frontend import q9
 
+RAIZ = Path(__file__).resolve().parents[1]
+
 def _obter_banco_padrao():
     env_banco = os.environ.get("BDR_BANCO")
     if env_banco:
-        return env_banco
+        return env_banco if env_banco.startswith("md:") or env_banco == ":memory:" else str((RAIZ / env_banco).resolve())
     for caminho in (
         "dados_bdr/saida/pipeline_bdr_der_completo_v2.duckdb",
         "dados_bdr/saida/pipeline_bdr_der_completo.duckdb",
         "pipeline_bdr_der/dados_bdr/saida/pipeline_bdr_der.duckdb",
     ):
-        if os.path.isfile(caminho):
-            return caminho
+        arquivo = RAIZ / caminho
+        if os.path.isfile(arquivo):
+            return str(arquivo)
     return "md:pipeline_bdr_der_completo_v2"
 
 BANCO = _obter_banco_padrao()
@@ -37,6 +41,14 @@ app = FastAPI(title="Apuração BDR", docs_url=None, redoc_url=None)
 app.add_middleware(CORSMiddleware, allow_methods=["GET"], allow_headers=[],
                    allow_origins=os.environ.get("BDR_CORS", "http://localhost:5173").split(","))
 _con, _lock = None, threading.Lock()
+
+
+def _configurar_search_path(cursor):
+    """Prefere o DER quando existe; bancos novos podem ter somente main."""
+    try:
+        cursor.execute("SET search_path = 'der_bdr,main'")
+    except duckdb.CatalogException:
+        cursor.execute("SET search_path = 'main'")
 
 
 def _conexao():
@@ -50,10 +62,7 @@ def _conexao():
                     raise RuntimeError("Configure MOTHERDUCK_TOKEN no processo da API para consultar o banco online")
                 os.environ["motherduck_token"] = token
                 _con = duckdb.connect(BANCO)
-                try:
-                    _con.execute("SET search_path = 'der_bdr,main'")
-                except Exception:
-                    pass
+                _configurar_search_path(_con)
             else:
                 _con = duckdb.connect(BANCO, read_only=True)
         return _con
@@ -65,7 +74,7 @@ def _consultar(sql, params=()):
         try:
             if BANCO.startswith("md:"):
                 # Os cursores DuckDB não herdam o search_path da conexão.
-                cur.execute("SET search_path = 'der_bdr,main'")
+                _configurar_search_path(cur)
             cur.execute(sql, list(params))
             colunas = [d[0] for d in cur.description]
             return [dict(zip(colunas, r)) for r in cur.fetchall()]
@@ -123,14 +132,33 @@ def q3(uf: str, ano: int):
 
 @app.get("/api/legenda/opcoes")
 def opcoes_legenda():
-    linhas = _consultar('''
-        SELECT DISTINCT e.ano, e.cargo
+    if _tem_view_legenda():
+        linhas = _consultar('''
+            SELECT ano, cargo FROM "vw_legenda_municipio_partido"
+            GROUP BY ano, cargo HAVING sum(votos_legenda) > 0
+            ORDER BY ano DESC, cargo
+        ''')
+    else:
+        linhas = _consultar('''
+        SELECT e.ano, e.cargo
         FROM "Votos_Partido_Municipio" v
         JOIN "Eleicao" e ON e.id_eleicao = v.id_eleicao
-        WHERE v.turno = 1 AND e.ano IS NOT NULL AND e.cargo IS NOT NULL
+        WHERE v.turno = 1 AND e.turno = 1 AND e.ano IS NOT NULL
+          AND e.cargo IN ('Deputado Federal', 'Deputado Estadual', 'Vereador')
+        GROUP BY e.ano, e.cargo HAVING sum(coalesce(v.votos_legenda, 0)) > 0
         ORDER BY e.ano DESC, e.cargo
-    ''')
+        ''')
     return {"opcoes": linhas}
+
+
+def _tem_view_legenda():
+    return bool(_consultar('''
+        SELECT 1 AS presente FROM information_schema.tables
+        WHERE table_catalog = current_database()
+          AND table_schema IN ('der_bdr', 'main')
+          AND lower(table_name) = 'vw_legenda_municipio_partido'
+        LIMIT 1
+    '''))
 
 
 @app.get("/api/legenda/{uf}/{ano}")
@@ -140,7 +168,18 @@ def votos_legenda(uf: str, ano: int, cargo: str):
         raise HTTPException(422, "UF fora do recorte")
     if (ano, cargo) not in {(r["ano"], r["cargo"]) for r in opcoes_legenda()["opcoes"]}:
         raise HTTPException(422, "Ano ou cargo sem votos partidários")
-    linhas = _consultar('''
+    if _tem_view_legenda():
+        linhas = _consultar('''
+            SELECT id_municipio, municipio, id_partido, partido,
+                   sum(votos_legenda)::BIGINT AS votos_legenda,
+                   sum(votos_nominais)::BIGINT AS votos_nominais
+            FROM "vw_legenda_municipio_partido"
+            WHERE uf = ? AND ano = ? AND cargo = ?
+            GROUP BY id_municipio, municipio, id_partido, partido
+            ORDER BY municipio, partido
+        ''', [uf, ano, cargo])
+    else:
+        linhas = _consultar('''
         SELECT m.id_municipio, m.nome AS municipio, pa.id_partido, pa.sigla AS partido,
                sum(coalesce(v.votos_legenda, 0))::BIGINT AS votos_legenda,
                sum(coalesce(v.votos_nominais, 0))::BIGINT AS votos_nominais
@@ -151,7 +190,7 @@ def votos_legenda(uf: str, ano: int, cargo: str):
         WHERE m.uf = ? AND e.ano = ? AND e.cargo = ? AND v.turno = 1
         GROUP BY m.id_municipio, m.nome, pa.id_partido, pa.sigla
         ORDER BY m.nome, pa.sigla
-    ''', [uf, ano, cargo])
+        ''', [uf, ano, cargo])
     return {"uf": uf, "ano": ano, "cargo": cargo, "linhas": linhas}
 
 

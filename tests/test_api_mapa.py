@@ -4,17 +4,28 @@ from unittest.mock import patch
 import duckdb
 
 from bdr.der.esquema import criar
+from bdr.instalar_legenda_views import instalar
 from frontend import main
 
 
 class ApiMapaTest(unittest.TestCase):
+    def test_motherduck_sem_schema_der_bdr_consulta_main(self):
+        con = duckdb.connect(":memory:")
+        try:
+            con.execute("CREATE TABLE Exemplo (valor INTEGER)")
+            con.execute("INSERT INTO Exemplo VALUES (7)")
+            with patch.multiple(main, _con=con, BANCO="md:teste"):
+                self.assertEqual(main._consultar('SELECT valor FROM "Exemplo"'), [{"valor": 7}])
+        finally:
+            con.close()
+
     def test_banco_online_quando_nao_ha_arquivo_local(self):
         with patch.dict("os.environ", {"BDR_BANCO": ""}), patch("frontend.main.os.path.isfile", return_value=False):
             self.assertEqual(main._obter_banco_padrao(), "md:pipeline_bdr_der_completo_v2")
 
     def test_banco_local_existente_tem_preferencia(self):
         with patch.dict("os.environ", {"BDR_BANCO": ""}), patch("frontend.main.os.path.isfile", side_effect=[False, False, True]):
-            self.assertEqual(main._obter_banco_padrao(), "pipeline_bdr_der/dados_bdr/saida/pipeline_bdr_der.duckdb")
+            self.assertEqual(main._obter_banco_padrao(), str(main.RAIZ / "pipeline_bdr_der/dados_bdr/saida/pipeline_bdr_der.duckdb"))
 
     def verificar_indicadores(self, motherduck):
         con = duckdb.connect(":memory:")
@@ -62,6 +73,8 @@ class ApiMapaTest(unittest.TestCase):
                 linhas = main.votos_legenda("MA", 2022, "Deputado Federal")["linhas"]
                 self.assertEqual(len(linhas), 1)
                 self.assertEqual((linhas[0]["votos_legenda"], linhas[0]["votos_nominais"]), (20, 80))
+                instalar(con)
+                self.assertEqual(main.votos_legenda("MA", 2022, "Deputado Federal")["linhas"], linhas)
         finally:
             con.close()
 
