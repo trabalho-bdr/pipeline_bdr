@@ -16,6 +16,26 @@ uv run python -m bdr.instalar_legenda_views --apply
 
 O script solicita o token do MotherDuck com entrada oculta quando `MOTHERDUCK_TOKEN` não está definido no terminal. Para outro banco, passe `--database md:nome_do_banco`. A instalação compara os totais por ano, cargo e UF com as tabelas de origem e desfaz a transação se houver divergência. Reinicie a API após instalar as views.
 
+## Patrimônio e sucesso eleitoral (Q2)
+
+Botão **Patrimônio** na barra de análises, no mesmo desenho de mapa das outras. Filtros: estado, **ano**
+(2018, 2020, 2022 e 2024), cargo e **indicador do mapa** (patrimônio mediano dos candidatos, dos eleitos ou a razão
+eleitos ÷ não eleitos). O mapa pinta os **municípios** do estado escolhido (prefeito e vereador) ou as **UFs**
+(Brasil inteiro, e todos os cargos estaduais: deputados, senador e governador, que não têm município).
+
+API (`frontend/q2.py`, SQL de entrega em `bdr/consultas_q2.sql`):
+
+* `GET /api/q2/opcoes`: pares (ano, cargo) que existem no banco.
+* `GET /api/q2/municipios?ano=2024&cargo=VEREADOR`: um valor por município e por UF (alimenta o mapa).
+* `GET /api/q2/patrimonio?ano=2024&cargo=VEREADOR&uf=RN&municipio=2400109`: cartões, decis e comparativo
+  do recorte (`uf` e `municipio` são opcionais).
+
+Regras: sucesso = resultado começando com `ELEITO`; insucesso = `NÃO ELEITO` e `SUPLENTE`; `#NULO` e `2º TURNO`
+ficam de fora (a tela informa quantos). Cada candidatura conta uma vez, pelo último turno, e a comparação é sempre
+dentro de um ano e de um cargo. Se o banco não tiver `Candidatura.patrimonio` para o recorte, a tela mostra um
+aviso com cobertura 0%. O botão **Usar dados de exemplo** mostra a interface com dados fictícios
+(`mockPatrimonio.ts`, mesmo contrato da API); para retirá-lo, veja o comentário `// MOCK` em `PainelPatrimonio.tsx`.
+
 ## Instalação e execução
 
 ### 1. Preparar as malhas do IBGE (já executado e validado)

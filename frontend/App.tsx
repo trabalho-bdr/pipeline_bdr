@@ -6,6 +6,7 @@ import { Feat, Mapa } from "./Mapa";
 import { gerarLinhasMockLegenda, opcoesMockLegenda } from "./mockLegenda";
 import { CORES_UF, corPartido } from "./coresEleitorais";
 import { PainelPublicidade } from "./PainelQ9";
+import { PainelPatrimonio } from "./PainelPatrimonio";
 
 type Cat = { ufs: { cod: string; sigla: string; nome: string }[]; municipios: Record<string, { id: string; nome: string }[]> };
 type Reg = Record<string, number | string | null>;
@@ -43,7 +44,7 @@ const somarLinhasLegenda = (linhas: LinhaLegenda[]): LinhaLegenda[] => {
 };
 
 export function App() {
-  const [analise, setAnalise] = useState<"abstencao" | "legenda" | "publicidade">("abstencao");
+  const [analise, setAnalise] = useState<"abstencao" | "legenda" | "publicidade" | "patrimonio">("abstencao");
   const [todosAnosLegenda, setTodosAnosLegenda] = useState(false);
   const [mostrarMock, setMostrarMock] = useState(false);
   const [visaoMapa, setVisaoMapa] = useState<"intensidade" | "vencedor">("vencedor");
@@ -300,6 +301,8 @@ export function App() {
   const nomeUf = cat?.ufs.find((item) => item.sigla === uf)?.nome || uf || "Brasil";
 
   if (analise === "publicidade") return <PainelPublicidade onAnalise={setAnalise} ufInicial={uf} />;
+  if (analise === "patrimonio") return <PainelPatrimonio onAnalise={setAnalise} cat={cat} ufsGeo={ufs} geoMun={geoMun} siglas={siglas} nomes={nomes}
+    municipiosBusca={municipiosBusca} erroGeo={erroGeo} uf={uf} mun={mun} onUf={selecionarUf} onMun={setMun} onMunicipio={selecionarMunicipio} />;
 
   const legendaMapa = analise === "abstencao" ? <div class="legenda"><strong>Abstenção (%) em {ano} · Q3</strong>
     <div class="barra" /><span>{valores.length ? `${lo.toFixed(1)} → ${hi.toFixed(1)}` : "Aguardando dados"}</span>
@@ -331,6 +334,7 @@ export function App() {
             <button aria-pressed={analise === "abstencao"} onClick={() => setAnalise("abstencao")}>Abstenção</button>
             <button aria-pressed={analise === "legenda"} onClick={() => setAnalise("legenda")}>Votos por legenda</button>
             <button aria-pressed={false} onClick={() => setAnalise("publicidade")}>Publicidade</button>
+            <button aria-pressed={false} onClick={() => setAnalise("patrimonio")}>Patrimônio</button>
           </div>
           <label>Estado <select value={uf || ""} onChange={(e) => selecionarUf((e.target as HTMLSelectElement).value || null)}><option value="">Brasil</option>{COBERTOS.map((sigla) => <option value={sigla}>{cat?.ufs.find((item) => item.sigla === sigla)?.nome || sigla} ({sigla})</option>)}</select></label>
           <label>Ano <select value={analise === "legenda" && todosAnosLegenda ? "todos" : anoAtivo ?? ""} onChange={(e) => {
