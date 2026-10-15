@@ -55,7 +55,11 @@ export function GraficosLegenda({ uf, mun, cargo, partido, onPartido, opcoes, li
     atual.legenda += item.votos_legenda; atual.nominais += item.votos_nominais;
     acc.set(item.id_municipio, atual); return acc;
   }, new Map<string, { id: string; nome: string; legenda: number; nominais: number }>()).values()]
-    .sort((a, b) => b.legenda - a.legenda).slice(0, 10);
+    .sort((a, b) => b.legenda - a.legenda || a.nome.localeCompare(b.nome, "pt-BR"))
+    .map((item, indice) => ({ ...item, posicao: indice + 1 }));
+  const municipioSelecionado = municipios.find((item) => item.id === mun);
+  const municipiosExibidos = municipios.slice(0, 10);
+  if (municipioSelecionado && municipioSelecionado.posicao > 10) municipiosExibidos.push(municipioSelecionado);
   const anosDisponiveis = [...new Set(opcoes.filter((item) => item.cargo === cargo).map((item) => item.ano))].sort((a, b) => a - b);
   const historicoAtivo = [...(historicoMock ?? historicoExterno ?? historico)].filter((item) => anosEscolhidos === null || anosEscolhidos.includes(item.ano)).sort((a, b) => a.ano - b.ano);
   const partidosHistoricos = [...new Map(historicoAtivo.flatMap((item) => item.partidos.map((p) => [p.id, p.nome] as const))).entries()]
@@ -106,8 +110,11 @@ export function GraficosLegenda({ uf, mun, cargo, partido, onPartido, opcoes, li
         <div class="legenda-trend-series" aria-label="Partidos da evolução">{partidosHistoricos.map(([id, nome]) => <button type="button" key={id} aria-label={`Filtrar painel pelo partido ${nome}`} aria-pressed={partido === id} onMouseEnter={() => setFocoPartido(id)} onMouseLeave={() => setFocoPartido(null)} onFocus={() => setFocoPartido(id)} onBlur={() => setFocoPartido(null)} onClick={() => onPartido(id)}><i style={{ background: corPartido(id) }} />{nome}</button>)}</div>
       </>}
     </article>
-    <article class="dash-chart-card legenda-municipios"><h2>Municípios com mais votos de legenda</h2><p>Selecione uma linha para localizar o município no mapa</p>
-      {semDados ? <div class="dash-empty">Os municípios aparecem quando os dados do recorte carregam.</div> : <div class="legenda-municipios-tabela"><div class="legenda-municipios-cabecalho"><span>Município</span><span>Votos</span><span>% legenda</span></div>{municipios.map((item) => <button key={item.id} class={mun === item.id ? "selecionado" : ""} onClick={() => { const sigla = ufPorMunicipio[item.id] || uf; if (sigla) onMunicipio(sigla, item.id); }}><span class="municipio-tabela-nome"><span>{item.nome}</span>{!uf && ufPorMunicipio[item.id] && <small class="uf-badge" style={{ color: CORES_UF[ufPorMunicipio[item.id]], borderColor: CORES_UF[ufPorMunicipio[item.id]] }}>{ufPorMunicipio[item.id]}</small>}</span><strong>{numero(item.legenda)}</strong><span>{percentual(100 * item.legenda / Math.max(1, item.legenda + item.nominais))}</span></button>)}</div>}
+    <article class="dash-chart-card legenda-municipios"><h2>Municípios com mais votos de legenda</h2><p>Ranking por quantidade de votos · selecione um município para vê-lo no mapa</p>
+      {semDados ? <div class="dash-empty">Os municípios aparecem quando os dados do recorte carregam.</div> : <>
+        {municipioSelecionado && <div class="legenda-posicao-municipio" role="status"><span>Posição de {municipioSelecionado.nome}</span><strong>{municipioSelecionado.posicao}º <small>de {municipios.length}</small></strong><span>{numero(municipioSelecionado.legenda)} votos de legenda</span></div>}
+        <div class="legenda-municipios-tabela"><div class="legenda-municipios-cabecalho"><span>Município</span><span>Votos</span><span>% legenda</span></div>{municipiosExibidos.map((item) => <button key={item.id} class={`${mun === item.id ? "selecionado" : ""} ${item.posicao > 10 ? "fora-do-topo" : ""}`} aria-current={mun === item.id ? "true" : undefined} onClick={() => { const sigla = ufPorMunicipio[item.id] || uf; if (sigla) onMunicipio(sigla, item.id); }}><span class="municipio-tabela-nome"><b class="municipio-posicao">{item.posicao}º</b><span>{item.nome}</span>{!uf && ufPorMunicipio[item.id] && <small class="uf-badge" style={{ color: CORES_UF[ufPorMunicipio[item.id]], borderColor: CORES_UF[ufPorMunicipio[item.id]] }}>{ufPorMunicipio[item.id]}</small>}</span><strong>{numero(item.legenda)}</strong><span>{percentual(100 * item.legenda / Math.max(1, item.legenda + item.nominais))}</span></button>)}</div>
+      </>}
     </article>
   </section>;
 }

@@ -206,3 +206,17 @@ body { background:var(--bg); color:#f1f2f9; }
 .layout>.mapa-com-municipio .dica { top:82px; }
 .dash-ranking-partidos { max-height:none; overflow:visible; }
 @media(max-width:700px) { .mapa-municipio-selecionado { top:88px; right:12px; max-width:calc(100% - 24px); }.layout>.mapa-com-municipio .dica { top:auto; } }
+
+html, .lista, .dash-ranking, .legenda-municipios-tabela, .legenda-trend-series, .mapa-busca-resultados, .aside-partidos-lista { scrollbar-width:thin; scrollbar-color:#737da6 #20263b; }
+::-webkit-scrollbar { width:9px; height:9px; }
+::-webkit-scrollbar-track { background:#20263b; border-radius:9px; }
+::-webkit-scrollbar-thumb { border:2px solid #20263b; border-radius:9px; background:#737da6; }
+::-webkit-scrollbar-thumb:hover { background:#a78bc3; }
+.legenda-municipios-tabela { max-height:280px; scrollbar-gutter:stable; }
+.legenda-municipios-cabecalho { position:sticky; top:0; z-index:1; background:#282d46; }
+.legenda-posicao-municipio { display:flex; align-items:center; flex-wrap:wrap; gap:5px 12px; margin:0 0 12px; padding:10px 12px; border:1px solid #695c86; border-left:3px solid #f15aab; border-radius:6px; background:#343752; color:#d8e0f3; font-size:12px; }
+.legenda-posicao-municipio strong { margin-left:auto; color:#fff; font-size:19px; font-variant-numeric:tabular-nums; }
+.legenda-posicao-municipio strong small { color:#bfcbe4; font-size:12px; font-weight:500; }
+.legenda-municipios-tabela .municipio-posicao { flex:none; width:26px; color:#aebcda; font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; }
+.legenda-municipios-tabela button.selecionado { box-shadow:inset 3px 0 #f15aab; }
+.legenda-municipios-tabela button.fora-do-topo { margin-top:6px; border-top:1px dashed #747b9a; }
