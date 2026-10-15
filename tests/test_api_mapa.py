@@ -10,10 +10,10 @@ from frontend import main
 class ApiMapaTest(unittest.TestCase):
     def test_banco_online_quando_nao_ha_arquivo_local(self):
         with patch.dict("os.environ", {"BDR_BANCO": ""}), patch("frontend.main.os.path.isfile", return_value=False):
-            self.assertEqual(main._obter_banco_padrao(), "md:pipeline_bdr_der_completo")
+            self.assertEqual(main._obter_banco_padrao(), "md:pipeline_bdr_der_completo_v2")
 
     def test_banco_local_existente_tem_preferencia(self):
-        with patch.dict("os.environ", {"BDR_BANCO": ""}), patch("frontend.main.os.path.isfile", side_effect=[False, True]):
+        with patch.dict("os.environ", {"BDR_BANCO": ""}), patch("frontend.main.os.path.isfile", side_effect=[False, False, True]):
             self.assertEqual(main._obter_banco_padrao(), "pipeline_bdr_der/dados_bdr/saida/pipeline_bdr_der.duckdb")
 
     def verificar_indicadores(self, motherduck):

@@ -7,24 +7,28 @@ MOTHERDUCK_TOKEN (somente no servidor), BDR_CORS (origens separadas por vírgula
 import logging
 import os
 import threading
+import time
+from functools import lru_cache
 
 import duckdb
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from bdr.consultas_apuracao import consulta
+from frontend import q9
 
 def _obter_banco_padrao():
     env_banco = os.environ.get("BDR_BANCO")
     if env_banco:
         return env_banco
     for caminho in (
+        "dados_bdr/saida/pipeline_bdr_der_completo_v2.duckdb",
         "dados_bdr/saida/pipeline_bdr_der_completo.duckdb",
         "pipeline_bdr_der/dados_bdr/saida/pipeline_bdr_der.duckdb",
     ):
         if os.path.isfile(caminho):
             return caminho
-    return "md:pipeline_bdr_der_completo"
+    return "md:pipeline_bdr_der_completo_v2"
 
 BANCO = _obter_banco_padrao()
 UFS = {"CE", "MA", "MS", "RJ", "RN", "RS"}
@@ -149,3 +153,21 @@ def votos_legenda(uf: str, ano: int, cargo: str):
         ORDER BY m.nome, pa.sigla
     ''', [uf, ano, cargo])
     return {"uf": uf, "ano": ano, "cargo": cargo, "linhas": linhas}
+
+
+@app.get("/api/q9/opcoes")
+def opcoes_q9():
+    return q9.opcoes(_consultar)
+
+
+@lru_cache(maxsize=24)
+def _resumo_q9_cache(banco, ano, cargo, uf, criterio, janela):
+    return q9.resumo(_consultar, ano, cargo, uf, criterio)
+
+
+@app.get("/api/q9/despesas")
+def despesas_q9(ano: int, cargo: str, uf: str | None = None,
+                criterio: str = 'sugeridas', atualizar: bool = False):
+    if atualizar:
+        _resumo_q9_cache.cache_clear()
+    return _resumo_q9_cache(BANCO, ano, cargo, uf, criterio, int(time.monotonic() // 180))
