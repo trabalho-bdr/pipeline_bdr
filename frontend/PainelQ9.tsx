@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { posicionarPalavras } from "./nuvemQ9";
 import "./painel-q9.css";
 
-type Analise = "abstencao" | "legenda" | "publicidade";
+type Analise = "abstencao" | "legenda" | "publicidade" | "patrimonio";
 type Opcao = { ano: number; cargo: string; rotulo: string };
 type Categoria = { categoria: string; grupo: string; valor: number; participacao: number | null; candidaturas: number; registros: number; em_revisao: number };
 type Dados = {
@@ -137,6 +137,7 @@ export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analis
           <button aria-pressed={false} onClick={() => onAnalise("abstencao")}>Abstenção</button>
           <button aria-pressed={false} onClick={() => onAnalise("legenda")}>Votos por legenda</button>
           <button aria-pressed={true}>Publicidade · Q9</button>
+          <button aria-pressed={false} onClick={() => onAnalise("patrimonio")}>Patrimônio</button>
         </div>
         <label>Ano da eleição<select aria-label="Ano da eleição" value={filtros.ano} disabled={!opcoes.length} onChange={(e) => {
           const ano = Number(e.currentTarget.value);

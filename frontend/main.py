@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from bdr.consultas_apuracao import consulta
-from frontend import q9
+from frontend import q2, q9
 
 RAIZ = Path(__file__).resolve().parents[1]
 
@@ -192,6 +192,36 @@ def votos_legenda(uf: str, ano: int, cargo: str):
         ORDER BY m.nome, pa.sigla
         ''', [uf, ano, cargo])
     return {"uf": uf, "ano": ano, "cargo": cargo, "linhas": linhas}
+
+
+@app.get("/api/q2/opcoes")
+def opcoes_q2():
+    return q2.opcoes(_consultar)
+
+
+@lru_cache(maxsize=24)
+def _municipios_q2_cache(banco, ano, cargo, uf):
+    return q2.municipios(_consultar, ano, cargo, uf)
+
+
+@app.get("/api/q2/municipios")
+def municipios_q2(ano: int | None = None, cargo: str | None = None, uf: str | None = None, atualizar: bool = False):
+    if atualizar:
+        _municipios_q2_cache.cache_clear()
+    return _municipios_q2_cache(BANCO, ano, cargo, uf)
+
+
+@lru_cache(maxsize=96)
+def _resumo_q2_cache(banco, ano, cargo, uf, municipio):
+    return q2.resumo(_consultar, ano, cargo, uf, municipio)
+
+
+@app.get("/api/q2/patrimonio")
+def patrimonio_q2(ano: int | None = None, cargo: str | None = None, uf: str | None = None,
+                  municipio: str | None = None, atualizar: bool = False):
+    if atualizar:
+        _resumo_q2_cache.cache_clear()
+    return _resumo_q2_cache(BANCO, ano, cargo, uf, municipio)
 
 
 @app.get("/api/q9/opcoes")
