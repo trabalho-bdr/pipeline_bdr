@@ -204,7 +204,10 @@ body { background:var(--bg); color:#f1f2f9; }
 .mapa-municipio-selecionado strong { color:#fff; font-size:14px; line-height:1.25; overflow-wrap:anywhere; }
 .layout>.mapa-com-municipio .dica { top:82px; }
 .analysis-legenda .dash-charts .dash-chart-card { height:330px; }
-.dash-ranking-partidos { max-height:220px; overflow-y:auto; scrollbar-gutter:stable; }
+.busca-ranking-partido { width:100%; height:36px; margin:0 0 10px; padding:7px 11px; border:1px solid #5a6387; border-radius:6px; background:#20263d; color:#f3f5fc; font-size:12px; }
+.busca-ranking-partido::placeholder { color:#aab8d3; }
+.busca-ranking-partido:focus-visible { outline:2px solid #f0a3d2; outline-offset:1px; }
+.dash-ranking-partidos { max-height:178px; overflow-y:auto; scrollbar-gutter:stable; }
 .dash-distribution-horizontal { display:grid; gap:10px; }
 .dash-distribution-row { display:grid; grid-template-columns:58px minmax(0,1fr) 54px; align-items:center; gap:10px; min-height:25px; color:#d5ddf0; font-size:12px; font-variant-numeric:tabular-nums; }
 .dash-distribution-row>i { display:block; height:12px; overflow:hidden; border-radius:6px; background:#1d243b; }

@@ -59,6 +59,7 @@ export function App() {
   const [anoLegenda, setAnoLegenda] = useState<number | null>(null);
   const [cargo, setCargo] = useState("");
   const [partido, setPartido] = useState("");
+  const [buscaRankingPartido, setBuscaRankingPartido] = useState("");
   const [linhasLegenda, setLinhasLegenda] = useState<LinhaLegenda[]>([]);
   const [statusLegenda, setStatusLegenda] = useState<"ok" | "carregando" | "erro">("ok");
   const [dadosBrasil, setDadosBrasil] = useState<DadosUfLegenda[]>([]);
@@ -195,6 +196,8 @@ export function App() {
     const atual = acc.get(r.id_partido) || { id: r.id_partido, nome: r.partido, votos: 0 };
     atual.votos += r.votos_legenda; acc.set(r.id_partido, atual); return acc;
   }, new Map<string, { id: string; nome: string; votos: number }>()).values()].sort((a, b) => b.votos - a.votos);
+  const termoRankingPartido = buscaRankingPartido.trim().normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase("pt-BR");
+  const partidosVisiveis = termoRankingPartido ? rankingPartidos.filter((item) => item.nome.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase("pt-BR").includes(termoRankingPartido)) : rankingPartidos;
   const percentuaisMunicipios = [...porMunicipio.values()].filter((r) => r.legenda + r.nominais > 0).map((r) => 100 * r.legenda / (r.legenda + r.nominais));
   const votosLegendaEstado = uf ? [...porMunicipio.values()].reduce((soma, r) => soma + r.legenda, 0) : 0;
   const votosNominaisEstado = uf ? [...porMunicipio.values()].reduce((soma, r) => soma + r.nominais, 0) : 0;
@@ -355,8 +358,8 @@ export function App() {
         </>}
       </aside>}
       <section class={`dash-charts ${analise === "legenda" && partido ? "single-chart" : ""}`} aria-label="Análises municipais">
-        {!(analise === "legenda" && partido) && <article class="dash-chart-card"><h2>{analise === "legenda" ? "Votos por partido" : "Taxas mais altas"}</h2><p>{analise === "legenda" ? `${rankingPartidos.length} partidos com registros · lista completa com rolagem` : "Municípios do recorte selecionado"}</p>
-          {analise === "legenda" ? rankingPartidos.length ? <div class="dash-ranking dash-ranking-partidos" tabIndex={0} aria-label="Todos os partidos ordenados por votos de legenda">{rankingPartidos.map((r) => <div class="dash-rank-row" key={r.id}><span><i class="party-dot" style={{ background: corPartido(r.id) }} />{r.nome}</span><i><b style={{ width: `${100 * r.votos / Math.max(1, rankingPartidos[0].votos)}%`, background: corPartido(r.id) }} /></i><strong>{fmt(r.votos)}</strong></div>)}</div> : <div class="dash-empty">Selecione um estado com votos para ver o ranking.</div>
+        {!(analise === "legenda" && partido) && <article class="dash-chart-card"><h2>{analise === "legenda" ? "Votos por partido" : "Taxas mais altas"}</h2><p>{analise === "legenda" ? `${rankingPartidos.length} partidos com registros · use a busca ou role a lista` : "Municípios do recorte selecionado"}</p>
+          {analise === "legenda" ? rankingPartidos.length ? <><input class="busca-ranking-partido" type="search" value={buscaRankingPartido} onInput={(e) => setBuscaRankingPartido((e.target as HTMLInputElement).value)} placeholder="Buscar partido" aria-label="Buscar partido nesta lista" />{partidosVisiveis.length ? <div class="dash-ranking dash-ranking-partidos" tabIndex={0} aria-label="Partidos encontrados na lista">{partidosVisiveis.map((r) => <div class="dash-rank-row" key={r.id}><span><i class="party-dot" style={{ background: corPartido(r.id) }} />{r.nome}</span><i><b style={{ width: `${100 * r.votos / Math.max(1, rankingPartidos[0].votos)}%`, background: corPartido(r.id) }} /></i><strong>{fmt(r.votos)}</strong></div>)}</div> : <div class="dash-empty">Nenhum partido encontrado nesta busca.</div>}</> : <div class="dash-empty">Selecione um estado com votos para ver os partidos.</div>
             : ranking.length ? <div class="dash-ranking">{ranking.map(([id, r]) => <button key={id} onClick={() => setMun(id)}><span>{nomes[id] || id}</span><i><b style={{ width: `${Math.min(100, Number(r.abstencao_pct) * 2)}%` }} /></i><strong>{fmt(r.abstencao_pct, 1, "%")}</strong></button>)}</div> : <div class="dash-empty">Selecione um estado com dados para ver o ranking.</div>}</article>}
         <article class="dash-chart-card"><h2>{analise === "legenda" ? "Distribuição dos votos de legenda" : "Distribuição da abstenção"}</h2><p>Quantidade de municípios por faixa percentual</p>{(analise === "legenda" ? percentuaisMunicipios.length : valores.length) ? analise === "legenda" ? <div class="dash-distribution-horizontal">{faixasAtivas.map((f) => <div class="dash-distribution-row" key={f.rotulo}><span>{f.rotulo}</span><i><b style={{ width: `${100 * f.valor / maxFaixaAtiva}%` }} /></i><strong>{fmt(f.valor)}</strong></div>)}</div> : <div class="dash-distribution">{faixasAtivas.map((f) => <div key={f.rotulo}><span>{f.valor}</span><i style={{ height: `${Math.max(3, 100 * f.valor / maxFaixaAtiva)}%` }} /><small>{f.rotulo}</small></div>)}</div> : <div class="dash-empty">Os dados aparecem após selecionar um estado.</div>}</article>
       </section>
