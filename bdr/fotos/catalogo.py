@@ -8,7 +8,8 @@ UFS = ('CE', 'MA', 'MS', 'RJ', 'RN', 'RS')
 
 
 def configuracao():
-    imagens = Path(os.environ.get('BDR_FOTOS_DIR', RAIZ / 'dados_bdr/fotos/imagens')).resolve()
+    padrao_imagens = RAIZ / 'dados_bdr/fotos selecionadas' if (RAIZ / 'dados_bdr/fotos selecionadas').is_dir() else RAIZ / 'dados_bdr/fotos/imagens'
+    imagens = Path(os.environ.get('BDR_FOTOS_DIR', padrao_imagens)).resolve()
     banco = Path(os.environ.get('BDR_FOTOS_CATALOGO', RAIZ / 'dados_bdr/fotos/catalogo.sqlite3')).resolve()
     cache = Path(os.environ.get('BDR_FOTOS_CACHE', RAIZ / 'dados_bdr/fotos/zips')).resolve()
     return imagens, banco, cache
@@ -96,8 +97,10 @@ CONSULTA_PUBLICA = '''SELECT p.id_candidato,
 
 class LeitorCatalogo:
     """Consultas indexadas em lote; conexão somente leitura por requisição, sem cache global gigante."""
-    def __init__(self, banco, imagens):
-        self.banco, self.imagens = Path(banco), Path(imagens)
+    def __init__(self, banco, imagens, selecionadas=None):
+        self.banco = Path(banco)
+        self.imagens = Path(imagens)
+        self.selecionadas = Path(selecionadas) if selecionadas else None
 
     def buscar(self, ids):
         ids = list(dict.fromkeys(ids))
@@ -124,10 +127,24 @@ class LeitorCatalogo:
     def arquivo(self, row):
         if row.get('foto_status') != 'disponivel' or row.get('mime') not in ('image/jpeg', 'image/png'):
             return None
-        try:
-            path = caminho_seguro(self.imagens, row.get('caminho'))
-            if path.is_file() and path.stat().st_size == row['tamanho']:
-                return path
-        except (ValueError, OSError):
-            pass
+        caminho_rel = row.get('caminho')
+        if not caminho_rel:
+            return None
+        locais = [self.imagens]
+        if self.selecionadas and self.selecionadas.is_dir() and self.selecionadas not in locais:
+            locais.append(self.selecionadas)
+        for extra in (
+            self.imagens.parent / 'fotos selecionadas',
+            self.imagens.parent.parent / 'fotos selecionadas',
+            RAIZ / 'dados_bdr/fotos selecionadas',
+        ):
+            if extra.is_dir() and extra not in locais:
+                locais.append(extra)
+        for raiz in locais:
+            try:
+                path = caminho_seguro(raiz, caminho_rel)
+                if path.is_file() and path.stat().st_size == row['tamanho']:
+                    return path
+            except (ValueError, OSError):
+                continue
         return None

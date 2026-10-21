@@ -10,17 +10,20 @@ import duckdb
 
 from .aquisicao import (adquirir_pacote, importar_fonte, importar_internas, necessidades,
                         preparar_selecao, relatorio, revalidar_imagens, selecionar_principais, vincular)
-from .catalogo import UFS, abrir, configuracao
+from .catalogo import RAIZ, UFS, abrir, configuracao
 from .fontes import agora, descobrir
 
 
 def parser():
     p = argparse.ArgumentParser(description='Foto principal por pessoa, a partir dos recursos oficiais do TSE.')
-    p.add_argument('comando', choices=('adquirir', 'relatorio'))
+    p.add_argument('comando', choices=('adquirir', 'relatorio', 'deduplicar'))
     p.add_argument('--banco', default=os.environ.get('BDR_BANCO'), help='DER local ou md:...; aberto somente para leitura')
     imagens, banco, cache = configuracao()
     p.add_argument('--imagens', type=Path, default=imagens)
     p.add_argument('--catalogo', type=Path, default=banco)
+    p.add_argument('--destino', type=Path, default=RAIZ / 'dados_bdr/fotos selecionadas', help='Diretório final fotos selecionadas')
+    p.add_argument('--aplicar', action='store_true', help='Efetivar deduplicação e exclusão')
+    p.add_argument('--limite', type=int, default=None, help='Limite de pessoas para análise ou deduplicação')
     p.add_argument('--cache', type=Path, default=cache)
     p.add_argument('--uf', nargs='+', choices=UFS, default=list(UFS))
     p.add_argument('--pessoa', action='append', default=[], help='id_candidato existente; repetível')
@@ -44,6 +47,17 @@ def executar(args):
             return relatorio(con)
         finally:
             con.close()
+    if args.comando == 'deduplicar':
+        from .deduplicacao import construir_plano, executar_deduplicacao, obter_banco_der_padrao, salvar_relatorios
+        banco_der = args.banco or obter_banco_der_padrao()
+        cat = abrir(args.catalogo)
+        try:
+            plano = construir_plano(cat, banco_der, args.imagens, args.destino, args.pessoa if args.pessoa else None, limite=args.limite)
+        finally:
+            cat.close()
+        res = executar_deduplicacao(plano, args.catalogo, args.imagens, args.destino, aplicar=args.aplicar)
+        salvar_relatorios(res)
+        return res
     if args.retomar_fotos and not args.catalogo.is_file():
         raise ValueError('A retomada de fotos exige um catálogo com a fase de identidade concluída.')
     if args.retomar_fotos and (args.atualizar or args.somente_cadastros):

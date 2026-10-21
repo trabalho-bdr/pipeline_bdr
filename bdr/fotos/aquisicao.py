@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from .catalogo import UFS, abrir, caminho_seguro
+from .catalogo import RAIZ, UFS, abrir, caminho_seguro
 from .fontes import (agora, biografia, hash_texto, linhas_cadastro, membro_seguro,
                      pacote_local, recurso_cadastro, recurso_fotos, sequencial, titulo)
 
@@ -246,25 +246,32 @@ def imagem_existente(cat, raiz, ano, uf, sq):
                       WHERE i.ano=? AND i.uf=? AND i.sequencial=? AND i.status='disponivel'""",
                       (ano, uf, sq)).fetchone()
     if row:
-        try:
-            path = caminho_seguro(raiz, row['caminho'])
-            stat = path.stat()
-            if stat.st_size != row['tamanho']:
-                return False
-            if row['mtime_ns'] == stat.st_mtime_ns:
-                return True
-            digest = hashlib.sha256()
-            with path.open('rb') as entrada:
-                while bloco := entrada.read(1024**2):
-                    digest.update(bloco)
-            # Bytes idênticos aos já decodificados/verificados dispensam nova decodificação.
-            if digest.hexdigest() == row['sha256']:
-                cat.execute('INSERT OR REPLACE INTO verificacoes VALUES (?,?,?,?,?)',
-                            (ano, uf, sq, stat.st_mtime_ns, row['sha256']))
-                return True
+        caminho_rel = row['caminho']
+        if not caminho_rel:
             return False
-        except (OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning):
-            pass
+        raizes = [raiz]
+        for extra in (raiz.parent.parent / 'fotos selecionadas', RAIZ / 'dados_bdr/fotos selecionadas'):
+            if extra.is_dir() and extra not in raizes:
+                raizes.append(extra)
+        for r in raizes:
+            try:
+                path = caminho_seguro(r, caminho_rel)
+                stat = path.stat()
+                if stat.st_size != row['tamanho']:
+                    continue
+                if row['mtime_ns'] == stat.st_mtime_ns:
+                    return True
+                digest = hashlib.sha256()
+                with path.open('rb') as entrada:
+                    while bloco := entrada.read(1024**2):
+                        digest.update(bloco)
+                # Bytes idênticos aos já decodificados/verificados dispensam nova decodificação.
+                if digest.hexdigest() == row['sha256']:
+                    cat.execute('INSERT OR REPLACE INTO verificacoes VALUES (?,?,?,?,?)',
+                                (ano, uf, sq, stat.st_mtime_ns, row['sha256']))
+                    return True
+            except (OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning):
+                pass
     return False
 
 
@@ -397,6 +404,7 @@ def necessidades(cat, ano, uf, atualizar=False):
               if cat.execute("SELECT 1 FROM sqlite_temp_master WHERE name='ativos'").fetchone() else '')
     return [r[0] for r in cat.execute('''SELECT DISTINCT o.sequencial FROM opcoes_foto o
        WHERE o.ano=? AND o.uf=? AND (? OR coalesce(o.imagem_status,'')<>'disponivel')
+       AND coalesce(o.imagem_status,'')<>'excluida_consolidacao'
        AND NOT EXISTS (SELECT 1 FROM opcoes_foto f WHERE f.id_candidato=o.id_candidato
           AND f.imagem_status='disponivel' AND f.ordem>o.ordem)''' + ativos, (ano, uf, int(atualizar)))]
 
