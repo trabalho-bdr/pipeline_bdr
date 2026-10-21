@@ -91,6 +91,48 @@ def candidaturas_q10(alvo, uf):
     return sql(conectar(alvo), consulta("q10_trajetorias"), [uf])
 
 
+def painel_demografia(alvo, uf, ano, turno, cargo):
+    con = conectar(alvo)
+    tabelas = {r[0].lower() for r in con.execute("SHOW TABLES").fetchall()}
+    if "perfil_eleitorado_municipio" not in tabelas:
+        st.info("Perfil demográfico ainda não carregado neste banco. Consulte o banco DER enriquecido.")
+        return
+    st.caption("Associações entre municípios. O voto é secreto: estes dados não identificam o partido votado por idade ou gênero. Jovens: 16 a 24 anos. Perfil do eleitorado no ano selecionado; censo: 2022.")
+    d = sql(con, consulta("q3_demografia_partidos"), [ano, uf, turno, cargo])
+    p = sql(con, consulta("q3_perfil_eleitorado"), [ano, uf])
+    if p.empty or d.empty:
+        st.info("Sem perfil do eleitorado ou votos para este recorte.")
+        return
+    opcoes = p[["id_municipio", "municipio"]].drop_duplicates().set_index("id_municipio")["municipio"].to_dict()
+    municipio = st.selectbox("Município · eleitorado e votação", opcoes, format_func=opcoes.get)
+    local = p[p.id_municipio == municipio]
+    idade, genero, escolaridade = st.tabs(["Faixa etária", "Gênero", "Escolaridade"])
+    for aba, campo in [(idade, "faixa_etaria"), (genero, "genero"), (escolaridade, "grau_instrucao")]:
+        with aba:
+            resumo = local.groupby(campo, as_index=False)["quantidade_eleitores"].sum()
+            st.plotly_chart(px.bar(resumo, x=campo, y="quantidade_eleitores"), use_container_width=True)
+    st.caption("Quantidades de eleitores cadastrados; não medem comparecimento dos grupos.")
+    st.dataframe(d[d.id_municipio == municipio], hide_index=True, use_container_width=True)
+    indicadores = {"jovens_16_24_pct": "Jovens no eleitorado (%)",
+                   "feminino_pct": "Gênero feminino no eleitorado (%)",
+                   "analfabetos_pct": "Eleitorado analfabeto (%)",
+                   "superior_completo_pct": "Eleitorado com superior completo (%)",
+                   "idade_media_estimada": "Idade média estimada da população (2022)",
+                   "idade_mediana": "Idade mediana da população (2022)"}
+    eixo = st.selectbox("Composição municipal", indicadores, format_func=indicadores.get)
+    medida = st.selectbox("Votação partidária", ["votos_pct", "legenda_pct"],
+                          format_func=lambda x: {"votos_pct": "Votos nominais + legenda (%)", "legenda_pct": "Votos de legenda (%)"}[x])
+    partidos = d[["id_partido", "partido"]].drop_duplicates().set_index("id_partido")["partido"].to_dict()
+    partido = st.selectbox("Partido · associação municipal", partidos, format_func=partidos.get)
+    recorte = d[d.id_partido == partido].dropna(subset=[eixo, medida])
+    st.plotly_chart(px.scatter(recorte, x=eixo, y=medida, hover_name="municipio",
+                              labels={eixo: indicadores[eixo], medida: "Participação nos votos (%)"}),
+                    use_container_width=True)
+    r = recorte[eixo].corr(recorte[medida]) if len(recorte) >= 3 else float("nan")
+    st.caption(f"Pearson: {r:.3f} · {len(recorte)} municípios com votação registrada para o partido. Associação descritiva; não demonstra causalidade ou preferência individual." if pd.notna(r) else "Correlação indisponível: poucos municípios, ausência de legenda ou indicador sem variação.")
+    st.caption("Média estimada: idades completas do Censo 2022, representando o grupo aberto 100+ por 100 anos. Escolaridade refere-se ao eleitorado cadastrado, não à população inteira.")
+
+
 # ---------------------------------------------------------------- mapa
 def mapa(selecionada):
     geo = malha()
@@ -182,7 +224,7 @@ with col_det:
     try:
         if questao.startswith("Q3"):
             c1, c2 = st.columns(2)
-            ano = c1.selectbox("Ano", [2022, 2024], index=1)
+            ano = c1.selectbox("Ano", [2018, 2020, 2022, 2024], index=3)
             turno = 1  # O DER preserva participação eleitoral apenas do primeiro turno.
             cargos = cargos_q3(alvo, uf, ano, turno)
             cargo = c2.selectbox("Cargo", cargos) if cargos else None
@@ -204,7 +246,9 @@ with col_det:
             m3.metric("Abstenção", f"{abstencao_total:.1f}%".replace(".", ","))
             m4.metric("IDHM médio", f"{df['idhm'].mean():.3f}".replace(".", ","))
 
-            aba1, aba2, aba3 = st.tabs(["Abstenção × indicador", "Partidos × perfil", "Dados completos"])
+            aba1, aba2, aba3, aba4 = st.tabs(["Abstenção × indicador", "Partidos × perfil", "Dados completos", "Idade, gênero e escolaridade"])
+            with aba4:
+                painel_demografia(alvo, uf, ano, turno, cargo)
             with aba1:
                 indicadores = {"pib_per_capita": "PIB per capita", "idhm": "IDHM (2010)",
                                "populacao": "População", "eleitorado": "Eleitores"}

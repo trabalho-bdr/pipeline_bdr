@@ -8,6 +8,7 @@ from pathlib import Path
 import duckdb
 
 from bdr.der.esquema import TABELAS_DER
+from bdr.der.demografia import enriquecer
 from bdr.der.q3_bruto import processar as processar_q3
 from bdr.der.q10_bruto import processar as processar_q10, retomar as retomar_q10
 from bdr.der.transformacao import construir
@@ -62,6 +63,8 @@ def executar_completo(ufs, q3_anos, q10_anos, saida, planilhas_idhm, csv_idhm, r
     if parcial.is_file():
         parcial.unlink()
     construir(q3, q10, parcial)
+    with duckdb.connect(str(parcial)) as con:
+        enriquecer(con, ufs, q3_anos, Path("dados_bdr/demografia"))
     parcial.replace(saida)
     q3.unlink()
     q10.unlink()

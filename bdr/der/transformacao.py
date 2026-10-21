@@ -79,7 +79,7 @@ def construir(q3, q10, destino, consulta_cand=()):
                LEFT JOIN q10.main.eleicao q10e ON q10e.ano=e.ano AND q10e.cd_eleicao=e.cd_eleicao AND q10e.turno=e.turno
                LEFT JOIN q3.main.eleicao q3e ON q3e.ano=e.ano AND q3e.cd_eleicao=e.cd_eleicao AND q3e.turno=e.turno''',
             '''INSERT INTO "Candidato" SELECT id_candidato,titulo_eleitoral,nome,data_nascimento,genero,raca,ocupacao FROM q10.main.candidato''',
-            '''INSERT INTO "Censo_Municipio" SELECT c.id_municipio,c.ano_referencia,c.populacao,c.idhm,c.pib,NULL,NULL
+            '''INSERT INTO "Censo_Municipio" (id_municipio,ano_referencia,populacao,idhm,pib,idade_mediana,indice_envelhecimento) SELECT c.id_municipio,c.ano_referencia,c.populacao,c.idhm,c.pib,NULL,NULL
                FROM q3.main.censo_municipio c JOIN "Municipio" m USING(id_municipio)''',
                 '''INSERT INTO "Participacao_Eleitoral" SELECT md5('PARTICIPACAO|'||cast(p.ano AS varchar)||'|'||p.id_municipio||'|'||cast(p.turno AS varchar)),
                p.id_municipio,p.ano,NULL,p.eleitorado_apto,p.comparecimento,p.abstencoes,p.taxa_abstencao
