@@ -1,0 +1,9 @@
+.foto-candidato { display:inline-flex; flex-direction:column; align-items:center; gap:4px; flex-shrink:0; max-width:145px; }
+.foto-candidato-retrato { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; border-radius:9px; background:var(--theme-surface-soft,#303447); color:var(--theme-text-secondary,#c5c4d0); border:1px solid var(--theme-border,#55586a); font:600 16px system-ui; }
+.foto-candidato-retrato img { display:block; width:100%; height:100%; object-fit:cover; object-position:center top; }
+.foto-candidato .foto-candidato-ano { font-size:10px; line-height:1.3; text-align:center; color:var(--theme-text-secondary,#b6b1cc); }
+.q9-candidate-results button { grid-template-columns:auto 1fr; column-gap:12px; }
+.q9-candidate-results button>.foto-candidato { grid-column:1; grid-row:1 / span 3; }
+.q9-candidate-results button>strong,.q9-candidate-results button>span:not(.foto-candidato),.q9-candidate-results button>small { grid-column:2; }
+.q9-candidate-selected>.q9-candidate-identity { display:flex; align-items:center; gap:16px; }
+.q9-candidate-identity>div { display:grid; gap:9px; }

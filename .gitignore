@@ -27,3 +27,8 @@ Thumbs.db
 .env.*
 .pytest_cache/
 scratch*
+
+# Catálogo auxiliar e imagens adquiridas (configuração padrão)
+fotos_bdr/
+*.sqlite3
+*.sqlite3-*

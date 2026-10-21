@@ -75,7 +75,10 @@ class EvolucaoPublicidadeTest(unittest.TestCase):
         self.assertEqual(d['comparacoes'][0]['coorte']['pares'], 1)
         self.assertEqual(d['comparacoes'][0]['coorte']['variacao_taxa_pp'], -100)
         self.assertEqual(d['comparacoes'][0]['coorte']['vitorias_consecutivas'], 0)
-        self.assertEqual(d['entidade'], {'id_candidato':'c','nome_civil':'Pessoa c'})
+        self.assertEqual({k: d['entidade'][k] for k in ('id_candidato','nome_civil')},
+                         {'id_candidato':'c','nome_civil':'Pessoa c'})
+        self.assertEqual(d['entidade']['foto_status'], 'nao_processada')
+        self.assertIsNone(d['entidade']['foto_url'])
 
     def test_mudanca_de_municipio_e_identidade_ambigua_nao_formam_par(self):
         self.con.execute("UPDATE Candidatura SET id_municipio='m2' WHERE id_candidatura='a24'")

@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { posicionarPalavras } from "./nuvemQ9";
 import { EvolucaoPublicidade } from "./EvolucaoPublicidade";
 import { AlternarTema } from "./Tema";
+import { FotoCandidato, type Foto } from "./FotoCandidato";
 import "./painel-q9.css";
 
 type Analise = "abstencao" | "legenda" | "publicidade" | "patrimonio";
 type Opcao = { ano: number; cargo: string; rotulo: string };
-type Candidato = { id_candidatura: string; id_candidato: string; nome: string; nome_civil: string | null;
+type Candidato = Foto & { id_candidatura: string; id_candidato: string; nome: string; nome_civil: string | null;
   numero_urna: number | null; municipio: string | null; uf: string; partido: string | null };
 type Categoria = { categoria: string; grupo: string; valor: number; participacao: number | null; candidaturas: number; registros: number; em_revisao: number };
 type Dados = {
@@ -94,8 +95,8 @@ function BuscaCandidato({ filtros, onSelecionar }: { filtros: Filtros; onSelecio
   }, [busca, filtros.candidato, tentativa]);
   const detalhes = (c: Candidato) => [c.numero_urna, c.partido, c.municipio, c.uf].filter((v) => v != null && v !== "").join(" · ");
   if (filtros.candidato) return <section class="q9-candidate-selected" aria-label="Candidato selecionado">
-    <div><span class="q9-eyebrow">DESPESAS DESTE CANDIDATO</span><strong>{filtros.candidato.nome}</strong>
-      <small>{detalhes(filtros.candidato)} · {filtros.ano}</small></div>
+    <div class="q9-candidate-identity"><FotoCandidato {...filtros.candidato} tamanho={72} /><div><span class="q9-eyebrow">DESPESAS DESTE CANDIDATO</span><strong>{filtros.candidato.nome}</strong>
+      <small>{detalhes(filtros.candidato)} · {filtros.ano}</small></div></div>
     <button onClick={() => { setBusca(""); onSelecionar(null); }}>Ver todos os candidatos</button>
   </section>;
   return <section class="q9-candidate-search" aria-label="Analisar um candidato específico">
@@ -108,6 +109,7 @@ function BuscaCandidato({ filtros, onSelecionar }: { filtros: Filtros; onSelecio
     <div role="status" aria-live="polite">{carregando ? "Buscando candidatos…" : resultado ? resultado.candidatos.length ? `${resultado.candidatos.length} candidaturas encontradas${resultado.tem_mais ? "; refine o nome para ver outras" : ""}.` : "Nenhum candidato com despesas encontrado neste recorte." : ""}</div>
     {erro && <div class="q9-search-error" role="alert">{erro} <button onClick={() => setTentativa((n) => n + 1)}>Tentar novamente</button></div>}
     {!!resultado?.candidatos.length && <ul class="q9-candidate-results">{resultado.candidatos.map((c) => <li key={c.id_candidatura}><button onClick={() => onSelecionar(c)}>
+      <FotoCandidato {...c} />
       <strong>{c.nome}</strong><span>{detalhes(c)}</span>
       {c.nome_civil && c.nome_civil !== c.nome && <small>{c.nome_civil}</small>}
     </button></li>)}</ul>}
@@ -172,6 +174,8 @@ export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analis
   const cargoRotulo = opcoes.find((o) => o.ano === filtros.ano && o.cargo === filtros.cargo)?.rotulo || "Cargo";
   const parcela = resumo && resumo.total_campanha > 0 ? 100 * resumo.publicidade / resumo.total_campanha : null;
   const temDados = !!resumo?.registros;
+  const candidatoExibido = dados?.candidato && dados.candidato.id_candidatura === filtros.candidato?.id_candidatura
+    ? dados.candidato : filtros.candidato;
 
   return <div class="layout q9-page">
     <header class="app-header">
@@ -205,7 +209,7 @@ export function PainelPublicidade({ onAnalise, ufInicial }: { onAnalise: (analis
 
       {(erro || erroOpcoes) && <div class="q9-error" role="alert"><div><strong>Não foi possível carregar este recorte</strong><p>{erro || erroOpcoes}</p></div><button onClick={() => erroOpcoes ? setTentativa((n) => n + 1) : setAtualizacao((n) => n + 1)}>Tentar novamente</button></div>}
 
-      <BuscaCandidato key={`${filtros.ano}:${filtros.cargo}:${filtros.uf}`} filtros={filtros} onSelecionar={(candidato) => setFiltros((f) => ({ ...f, candidato }))} />
+      <BuscaCandidato key={`${filtros.ano}:${filtros.cargo}:${filtros.uf}`} filtros={{ ...filtros, candidato: candidatoExibido }} onSelecionar={(candidato) => setFiltros((f) => ({ ...f, candidato }))} />
 
       <section class="q9-kpis" aria-label="Investimento no recorte" aria-busy={carregando}>
         <article class="q9-kpi q9-kpi-principal"><div><span class="q9-kpi-label">Publicidade identificada</span><span class="q9-kpi-icon">↗</span></div><strong>{carregando ? <i class="q9-skeleton" /> : resumo ? brl(resumo.publicidade) : "—"}</strong><p>Valor contratado nas categorias selecionadas</p></article>

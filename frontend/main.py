@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from bdr.consultas_apuracao import consulta
-from frontend import q2, q9, q9_evolucao
+from frontend import q2, q9, q9_evolucao, fotos
 
 RAIZ = Path(__file__).resolve().parents[1]
 
@@ -37,6 +37,7 @@ BANCO = _obter_banco_padrao()
 UFS = {"CE", "MA", "MS", "RJ", "RN", "RS"}
 log = logging.getLogger("api")
 app = FastAPI(title="Apuração BDR", docs_url=None, redoc_url=None)
+app.include_router(fotos.router)
 app.add_middleware(CORSMiddleware, allow_methods=["GET"], allow_headers=[],
                    allow_origins=os.environ.get("BDR_CORS", "http://localhost:5173").split(","))
 _con, _lock = None, threading.Lock()
@@ -243,7 +244,10 @@ def evolucao_q9(cargo: str, uf: str | None = None, id_partido: str | None = None
                 id_candidato: str | None = None, criterio: str = 'sugeridas', atualizar: bool = False):
     if atualizar:
         _evolucao_q9_cache.cache_clear()
-    return _evolucao_q9_cache(BANCO, cargo, uf, id_partido, id_candidato, criterio, int(time.monotonic() // 180))
+    resultado = _evolucao_q9_cache(BANCO, cargo, uf, id_partido, id_candidato, criterio, int(time.monotonic() // 180))
+    if resultado['modo'] == 'candidato':
+        return {**resultado, 'entidade': fotos.enriquecer([resultado['entidade']])[0]}
+    return resultado
 
 
 @lru_cache(maxsize=24)
@@ -253,7 +257,8 @@ def _resumo_q9_cache(banco, ano, cargo, uf, criterio, janela, id_candidatura=Non
 
 @app.get("/api/q9/candidatos")
 def candidatos_q9(ano: int, cargo: str, busca: str, uf: str | None = None):
-    return q9.candidatos(_consultar, ano, cargo, busca, uf)
+    resultado = q9.candidatos(_consultar, ano, cargo, busca, uf)
+    return {**resultado, 'candidatos': fotos.enriquecer(resultado['candidatos'])}
 
 
 @app.get("/api/q9/despesas")
@@ -261,4 +266,5 @@ def despesas_q9(ano: int, cargo: str, uf: str | None = None,
                 criterio: str = 'sugeridas', atualizar: bool = False, id_candidatura: str | None = None):
     if atualizar:
         _resumo_q9_cache.cache_clear()
-    return _resumo_q9_cache(BANCO, ano, cargo, uf, criterio, int(time.monotonic() // 180), id_candidatura)
+    resultado = _resumo_q9_cache(BANCO, ano, cargo, uf, criterio, int(time.monotonic() // 180), id_candidatura)
+    return {**resultado, 'candidato': fotos.enriquecer([resultado['candidato']])[0] if resultado['candidato'] else None}

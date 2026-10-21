@@ -1,5 +1,7 @@
 # Pipeline BDR — Questão 3
 
+Fotos oficiais por pessoa: veja [aquisição, retomada, API e implantação](README_fotos.md) e os [resultados da execução](RESULTADO_fotos.md).
+
 Pipeline de extração, transformação, carga (ETL), validação e consolidação de dados eleitorais e socioeconômicos para responder à **Questão 3** do projeto da disciplina de Banco de Dados Relacional (BDR).
 
 ---
