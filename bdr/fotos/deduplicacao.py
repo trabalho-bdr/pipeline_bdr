@@ -528,10 +528,16 @@ def construir_plano(cat, der_path_ou_con, raiz_origem, raiz_destino, ids_filtro=
         for idx, cand in enumerate(candidaturas_ordenadas):
             cam_rel = cand.get('caminho')
             caminho_completo = None
-            try:
-                caminho_completo = caminho_seguro(raiz_origem, cam_rel)
-            except Exception:
-                pass
+            origem_utilizada = raiz_origem
+            for r_cand in (raiz_origem, raiz_destino):
+                try:
+                    p = caminho_seguro(r_cand, cam_rel)
+                    if p.is_file():
+                        caminho_completo = p
+                        origem_utilizada = r_cand
+                        break
+                except Exception:
+                    pass
 
             validacao = (
                 validar_arquivo_imagem(

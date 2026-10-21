@@ -8,8 +8,7 @@ UFS = ('CE', 'MA', 'MS', 'RJ', 'RN', 'RS')
 
 
 def configuracao():
-    padrao_imagens = RAIZ / 'dados_bdr/fotos selecionadas' if (RAIZ / 'dados_bdr/fotos selecionadas').is_dir() else RAIZ / 'dados_bdr/fotos/imagens'
-    imagens = Path(os.environ.get('BDR_FOTOS_DIR', padrao_imagens)).resolve()
+    imagens = Path(os.environ.get('BDR_FOTOS_DIR', RAIZ / 'dados_bdr/fotos/imagens')).resolve()
     banco = Path(os.environ.get('BDR_FOTOS_CATALOGO', RAIZ / 'dados_bdr/fotos/catalogo.sqlite3')).resolve()
     cache = Path(os.environ.get('BDR_FOTOS_CACHE', RAIZ / 'dados_bdr/fotos/zips')).resolve()
     return imagens, banco, cache

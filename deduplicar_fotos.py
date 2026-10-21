@@ -50,8 +50,9 @@ def parser():
         help="Caminho do DER local DuckDB (ex.: dados_bdr/saida/pipeline_bdr_der_completo_v2.duckdb). Aberto somente para leitura.",
     )
 
-    padrao_imagens, padrao_catalogo, _ = configuracao()
+    padrao_origem = RAIZ / "dados_bdr" / "fotos" / "imagens"
     padrao_destino = RAIZ / "dados_bdr" / "fotos selecionadas"
+    padrao_catalogo = RAIZ / "dados_bdr" / "fotos" / "catalogo.sqlite3"
 
     p.add_argument(
         "--catalogo",
@@ -62,7 +63,7 @@ def parser():
     p.add_argument(
         "--origem",
         type=Path,
-        default=padrao_imagens,
+        default=padrao_origem,
         help="Diretório das fotos originais (default: dados_bdr/fotos/imagens)",
     )
     p.add_argument(
