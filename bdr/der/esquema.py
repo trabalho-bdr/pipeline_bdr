@@ -1,6 +1,7 @@
 """Esquema final do DER para Q3 e Q10. A ordem das colunas é contratual."""
 
 from .demografia import PERFIL_DDL
+from .fotos import FOTO_DDL
 
 TABELAS_DER = {
     "Patrimonio_Candidato": "ano INTEGER, cd_eleicao VARCHAR, uf VARCHAR, sq_candidato VARCHAR, numero_candidato INTEGER, nome_candidato VARCHAR, tipo_bem VARCHAR, descricao_bem VARCHAR, valor_bem DOUBLE, data_atualizacao DATE, arquivo_origem VARCHAR",
@@ -16,6 +17,7 @@ TABELAS_DER = {
     "Resultado_Candidatura": "id_resultado VARCHAR PRIMARY KEY, id_candidatura VARCHAR NOT NULL, turno SMALLINT, resultado VARCHAR, votos BIGINT, FOREIGN KEY (id_candidatura) REFERENCES Candidatura(id_candidatura)",
     "Cargo": "id_cargo VARCHAR PRIMARY KEY, nome VARCHAR, id_candidatura VARCHAR NOT NULL, FOREIGN KEY (id_candidatura) REFERENCES Candidatura(id_candidatura)",
     "Votos_Partido_Municipio": "id_votos VARCHAR PRIMARY KEY, id_eleicao VARCHAR NOT NULL, id_partido VARCHAR NOT NULL, id_municipio VARCHAR NOT NULL, turno SMALLINT, votos_nominais BIGINT, votos_legenda BIGINT, FOREIGN KEY (id_eleicao) REFERENCES Eleicao(id_eleicao), FOREIGN KEY (id_partido) REFERENCES Partido(id_partido), FOREIGN KEY (id_municipio) REFERENCES Municipio(id_municipio)",
+    "Foto_Candidato": FOTO_DDL,
 }
 
 

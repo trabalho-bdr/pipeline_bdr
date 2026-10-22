@@ -91,6 +91,17 @@ def candidaturas_q10(alvo, uf):
     return sql(conectar(alvo), consulta("q10_trajetorias"), [uf])
 
 
+def mostrar_foto(alvo, id_candidato):
+    con = conectar(alvo)
+    if 'foto_candidato' not in {r[0].lower() for r in con.execute('SHOW TABLES').fetchall()}:
+        return
+    foto = con.execute(consulta('q10_foto'), [id_candidato]).fetchone()
+    if foto:
+        st.image(bytes(foto[0]), width=180, caption=f'Foto oficial TSE · {foto[1]} · {foto[2]}')
+    else:
+        st.caption('Foto oficial não disponível neste banco para este candidato.')
+
+
 def painel_demografia(alvo, uf, ano, turno, cargo):
     con = conectar(alvo)
     tabelas = {r[0].lower() for r in con.execute("SHOW TABLES").fetchall()}
@@ -112,6 +123,17 @@ def painel_demografia(alvo, uf, ano, turno, cargo):
             resumo = local.groupby(campo, as_index=False)["quantidade_eleitores"].sum()
             st.plotly_chart(px.bar(resumo, x=campo, y="quantidade_eleitores"), use_container_width=True)
     st.caption("Quantidades de eleitores cadastrados; não medem comparecimento dos grupos.")
+    faixas = st.multiselect("Faixas etárias do eleitorado", sorted(local.faixa_etaria.unique()))
+    generos = st.multiselect("Gêneros do eleitorado", sorted(local.genero.unique()))
+    detalhe = local
+    if faixas:
+        detalhe = detalhe[detalhe.faixa_etaria.isin(faixas)]
+    if generos:
+        detalhe = detalhe[detalhe.genero.isin(generos)]
+    st.dataframe(detalhe[["faixa_etaria", "genero", "grau_instrucao",
+                         "quantidade_eleitores", "percentual_eleitorado"]],
+                 hide_index=True, use_container_width=True)
+    st.caption("A votação abaixo é o total do município. Os filtros de idade e gênero descrevem o eleitorado e não separam votos individuais.")
     st.dataframe(d[d.id_municipio == municipio], hide_index=True, use_container_width=True)
     indicadores = {"jovens_16_24_pct": "Jovens no eleitorado (%)",
                    "feminino_pct": "Gênero feminino no eleitorado (%)",
@@ -229,8 +251,12 @@ with col_det:
             cargos = cargos_q3(alvo, uf, ano, turno)
             cargo = c2.selectbox("Cargo", cargos) if cargos else None
             df = base_q3(alvo, uf, ano)
-            if df.empty or not cargo:
+            if not cargo:
                 st.warning("Sem dados para esse recorte.")
+                st.stop()
+            if df.empty:
+                st.info("Participação eleitoral indisponível neste ano; perfil e votos disponíveis abaixo.")
+                painel_demografia(alvo, uf, ano, turno, cargo)
                 st.stop()
             st.caption(
                 "Primeiro turno · PIB e população: 2022 · IDHM: 2010. "
@@ -339,6 +365,7 @@ with col_det:
                             format_func=lambda i: f"{ids[i]} · {i[:8]}",
                         )
                         c = d[d["id_candidato"] == escolha].sort_values("ano")
+                        mostrar_foto(alvo, escolha)
                         f = px.scatter(c, x="ano", y="ordem_cargo", color="partido", symbol="eleito",
                                        hover_data=["turno", "cargo", "municipio", "uf", "votos", "resultado"], size_max=16,
                                        symbol_map={True: "star", False: "circle-open"})

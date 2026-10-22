@@ -20,7 +20,7 @@ class ConsultasApuracaoTest(unittest.TestCase):
             ('e2',2022,'Geral',1,'DEPUTADO FEDERAL',DATE '2022-10-02')""")
         self.con.execute("""INSERT INTO "Candidato" VALUES
             ('cand1','titulo1','Nome Civil',DATE '1980-01-01','M','Parda','Professor')""")
-        self.con.execute("""INSERT INTO "Censo_Municipio" VALUES
+        self.con.execute("""INSERT INTO "Censo_Municipio" (id_municipio,ano_referencia,populacao,idhm,pib,idade_mediana,indice_envelhecimento) VALUES
             ('m1',2022,50000,NULL,500000000,NULL,NULL),
             ('m1',2010,NULL,0.650,NULL,NULL,NULL),
             ('m2',2022,200000,NULL,6000000000,NULL,NULL),
@@ -48,7 +48,8 @@ class ConsultasApuracaoTest(unittest.TestCase):
     def test_arquivo_contem_as_quatro_consultas(self):
         self.assertEqual(
             set(carregar_consultas()),
-            {"q3_municipios", "q3_cargos", "q3_votos_por_perfil", "q10_trajetorias"},
+            {"q3_municipios", "q3_cargos", "q3_votos_por_perfil", "q10_trajetorias",
+             "q3_perfil_eleitorado", "q3_demografia_partidos", "q10_foto"},
         )
 
     def test_q3_reune_indicadores_perfis_abstencao_e_votos(self):

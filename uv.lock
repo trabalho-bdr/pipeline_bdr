@@ -446,6 +446,7 @@ dependencies = [
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "pandas", version = "3.0.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pillow" },
     { name = "plotly" },
     { name = "streamlit" },
 ]
@@ -455,6 +456,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.0.0" },
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "pandas", specifier = ">=2.3.3" },
+    { name = "pillow", specifier = ">=10" },
     { name = "plotly", specifier = ">=7.1.0" },
     { name = "streamlit", specifier = ">=1.65.0" },
 ]

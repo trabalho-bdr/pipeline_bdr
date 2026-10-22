@@ -1,5 +1,12 @@
 # Pipeline BDR — Questão 3
 
+A carga de fotos oficiais dos candidatos e o envio posterior ao MotherDuck estão
+documentados em [README_fotos.md](README_fotos.md).
+
+O enriquecimento do DER com idade, gênero e escolaridade do eleitorado, idade
+média estimada do município e consultas de associação com votação está documentado
+em [README_demografia.md](README_demografia.md).
+
 Pipeline de extração, transformação, carga (ETL), validação e consolidação de dados eleitorais e socioeconômicos para responder à **Questão 3** do projeto da disciplina de Banco de Dados Relacional (BDR).
 
 ---

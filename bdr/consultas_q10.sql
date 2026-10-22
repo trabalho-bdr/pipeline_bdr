@@ -1,3 +1,8 @@
+-- name: q10_foto
+-- Uma foto por pessoa; parâmetro: id_candidato. Os bytes são portáveis ao MotherDuck.
+SELECT imagem, ano_foto, uf, mime_type, url_fonte
+FROM Foto_Candidato WHERE id_candidato=?;
+
 /*
 Questão 10
 ===========
